@@ -15,6 +15,7 @@ def plot_six_metrics(
     titles: List[str],
     save_path: Optional[str] = None,
     prefix: str = "plot",
+    cut_points: Optional[List[int]] = None,
 ) -> None:
     """
     Plots all 6 metrics in one figure with subplots.
@@ -35,6 +36,8 @@ def plot_six_metrics(
         ax.set_ylabel(titles[i])
         ax.grid(True)
         ax.set_xlabel("Time Step")
+        for cut_point in cut_points or []:
+            ax.axvline(x=cut_point, color='red', linestyle='-', linewidth=0.5)
     _ = fig.suptitle(f"File {prefix} Metrics")
     plt.tight_layout()
     if save_path is not None:
