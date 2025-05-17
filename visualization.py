@@ -4,10 +4,19 @@ from matplotlib.figure import Figure
 from matplotlib.axes import Axes
 
 LINE_WIDTH = 0.7
-FONT_FAMILY = ["SF Pro", "Noto Sans TC"]
+FONT_FAMILIES = [
+    "SF Pro",
+    "Noto Sans TC",
+    "Noto Sans CJK HK",
+    "Noto Sans CJK JP",
+    "Noto Sans CJK KR",
+    "Noto Sans CJK SC",
+    "Noto Sans CJK TC"]
 
-plt.rcParams["font.family"] = FONT_FAMILY
-
+# Don't set font.family directly. This makes it so that Matplotlib tries to find
+# if any of the fonts in font.sans-serif exist before failing.
+plt.rcParams["font.family"] = "sans-serif"
+plt.rcParams["font.sans-serif"] = FONT_FAMILIES
 
 # 新增函式：繪製六個維度的資料於一張圖中的六個子圖
 def plot_six_metrics(
