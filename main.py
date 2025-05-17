@@ -1,8 +1,8 @@
-import glob
-import os
+from glob import glob
+from os import path, makedirs
 from datetime import datetime
-import numpy as np
-import pandas as pd
+from numpy import loadtxt, fromstring
+from pandas import read_csv # pyright: ignore[reportUnknownVariableType]
 from fft import apply_rfft_to_data_list
 from visualization import plot_overlay_metrics, plot_overlay_metrics_fft, plot_six_metrics, plot_six_metrics_fft
 from type_aliases import DoubleNBy6
@@ -15,7 +15,7 @@ TESTING_DATA_BASE_PATH = "39_Test_Dataset/test_data/"
 TESTING_DATA_METADATA_PATH = "39_Test_Dataset/test_info.csv"
 
 
-ALL_FILES = glob.glob(os.path.join(TRAINING_DATA_BASE_PATH, "*.txt"))
+ALL_FILES = glob(path.join(TRAINING_DATA_BASE_PATH, "*.txt"))
 
 TITLES = ["X軸加速度(Ax)", "Y軸加速度(Ay)", "Z軸加速度(Az)", "X軸角速度(Gx)", "Y軸角速度(Gy)", "Z軸角速度(Gz)"]
 
@@ -31,17 +31,17 @@ def main():
     data_list: list[DoubleNBy6] = []
 
     for file in file_list:
-        file_path = os.path.join(TRAINING_DATA_BASE_PATH, f"{file}.txt")
-        if os.path.exists(file_path):
-            data = cast(DoubleNBy6, np.loadtxt(file_path))
+        file_path = path.join(TRAINING_DATA_BASE_PATH, f"{file}.txt")
+        if path.exists(file_path):
+            data = cast(DoubleNBy6, loadtxt(file_path))
             data_list.append(data)
         else:
             print(f"Warning: {file_path} not found.")
 
     print(f"Loaded {len(data_list)} files.")
 
-    meta_data = pd.read_csv(TRAINING_DATA_METADATA_PATH) # pyright: ignore[reportUnknownMemberType]
-    cut_points_to_int_list: Callable[[str], list[int]] = lambda s: np.fromstring(s.strip()[1:-1], sep=' ', dtype=int).tolist()
+    meta_data = read_csv(TRAINING_DATA_METADATA_PATH)
+    cut_points_to_int_list: Callable[[str], list[int]] = lambda s: fromstring(s.strip()[1:-1], sep=' ', dtype=int).tolist()
     meta_data["cut_point"] = meta_data["cut_point"].apply(cut_points_to_int_list) # pyright: ignore[reportUnknownMemberType]
 
 
@@ -51,7 +51,7 @@ def main():
     # 建立唯一輸出資料夾
     output_dir = f"{OUTPUT_DIR}/{OUTPUT_FOLDER_PREFIX}"
 
-    os.makedirs(output_dir, exist_ok=True)
+    makedirs(output_dir, exist_ok=True)
 
     # plot_six_metrics
     for i, data in enumerate(data_list):
@@ -73,7 +73,7 @@ def main():
 
     # 建立 FFT 輸出資料夾
     fft_output_dir = output_dir + "/fft"
-    os.makedirs(fft_output_dir, exist_ok=True)
+    makedirs(fft_output_dir, exist_ok=True)
 
     # plot_six_metrics for FFT data
     for i, fft_data in enumerate(fft_data_list):

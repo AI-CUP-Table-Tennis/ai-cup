@@ -1,4 +1,4 @@
-import matplotlib.pyplot as plt
+from matplotlib.pyplot import rcParams, subplots, tight_layout, close # pyright: ignore[reportUnknownVariableType]
 from type_aliases import Double1D, DoubleNBy6, Axes2D
 from matplotlib.figure import Figure
 from matplotlib.axes import Axes
@@ -15,8 +15,8 @@ FONT_FAMILIES = [
 
 # Don't set font.family directly. This makes it so that Matplotlib tries to find
 # if any of the fonts in font.sans-serif exist before failing.
-plt.rcParams["font.family"] = "sans-serif"
-plt.rcParams["font.sans-serif"] = FONT_FAMILIES
+rcParams["font.family"] = "sans-serif"
+rcParams["font.sans-serif"] = FONT_FAMILIES
 
 # 新增函式：繪製六個維度的資料於一張圖中的六個子圖
 def plot_six_metrics(
@@ -36,10 +36,9 @@ def plot_six_metrics(
     - prefix: prefix for the saved file name
     """
 
-    plt.rcParams["axes.unicode_minus"] = False
     fig: Figure
     axes: Axes2D
-    fig, axes = plt.subplots(3, 2, figsize=(15, 10), sharex=False) # pyright: ignore[reportUnknownMemberType]
+    fig, axes = subplots(3, 2, figsize=(15, 10), sharex=False)
     axes_flattened = axes.flatten()
     for i in range(6):
         ax: Axes = axes_flattened[i]
@@ -50,10 +49,10 @@ def plot_six_metrics(
         for cut_point in cut_points or []:
             ax.axvline(x=cut_point, color='red', linestyle='-', linewidth=0.5) # pyright: ignore[reportUnknownMemberType]
     fig.suptitle(f"File {prefix} Metrics") # pyright: ignore[reportUnknownMemberType]
-    plt.tight_layout()
+    tight_layout()
     if save_path is not None:
         fig.savefig(f"{save_path}/{prefix}.png") # pyright: ignore[reportUnknownMemberType]
-    plt.close(fig)
+    close(fig)
 
 
 def plot_overlay_metrics(
@@ -73,7 +72,7 @@ def plot_overlay_metrics(
     """
     fig: Figure
     axes: Axes2D
-    fig, axes = plt.subplots(3, 2, figsize=(15, 10)) # pyright: ignore[reportUnknownMemberType]
+    fig, axes = subplots(3, 2, figsize=(15, 10))
     axes_flattened = axes.flatten()
     for i in range(6):
         ax = axes_flattened[i]
@@ -84,11 +83,11 @@ def plot_overlay_metrics(
         ax.set_ylabel(titles[i])
         ax.legend()
     fig.suptitle("Overlay Metrics Comparison") # pyright: ignore[reportUnknownMemberType]
-    plt.tight_layout()
+    tight_layout()
 
     if save_path is not None:
         fig.savefig(f"{save_path}") # pyright: ignore[reportUnknownMemberType]
-    plt.close()
+    close()
 
 
 def plot_six_metrics_fft(
@@ -108,10 +107,9 @@ def plot_six_metrics_fft(
     - prefix: prefix for the saved file name
     """
 
-    plt.rcParams["axes.unicode_minus"] = False
     fig: Figure
     axes: Axes2D
-    fig, axes = plt.subplots(3, 2, figsize=(15, 10), sharex=False) # pyright: ignore[reportUnknownMemberType]
+    fig, axes = subplots(3, 2, figsize=(15, 10), sharex=False)
     axes_flattened = axes.flatten()
     for i in range(6):
         ax = axes_flattened[i]
@@ -124,10 +122,10 @@ def plot_six_metrics_fft(
         ax.set_ylabel("Amplitude")
 
     fig.suptitle(f"File {prefix} Metrics") # pyright: ignore[reportUnknownMemberType]
-    plt.tight_layout()
+    tight_layout()
     if save_path is not None:
         fig.savefig(f"{save_path}/{prefix}.png") # pyright: ignore[reportUnknownMemberType]
-    plt.close(fig)
+    close(fig)
 
 
 def plot_overlay_metrics_fft(
@@ -148,7 +146,7 @@ def plot_overlay_metrics_fft(
     """
     fig: Figure
     axes: Axes2D
-    fig, axes = plt.subplots(3, 2, figsize=(15, 10), sharex=False) # pyright: ignore[reportUnknownMemberType]
+    fig, axes = subplots(3, 2, figsize=(15, 10), sharex=False)
     axes_flattened = axes.flatten()
     for i in range(6):
         ax = axes_flattened[i]
@@ -162,8 +160,8 @@ def plot_overlay_metrics_fft(
         ax.set_ylabel("Amplitude")
 
     fig.suptitle("Overlay Metrics Comparison") # pyright: ignore[reportUnknownMemberType]
-    plt.tight_layout()
+    tight_layout()
 
     if save_path is not None:
         fig.savefig(f"{save_path}") # pyright: ignore[reportUnknownMemberType]
-    plt.close()
+    close()

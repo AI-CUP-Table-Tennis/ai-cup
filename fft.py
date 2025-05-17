@@ -1,4 +1,4 @@
-import numpy as np
+from numpy import hamming, pad, log10, abs
 from typing import cast
 from scipy.fft import fft, fftfreq, rfft, rfftfreq
 from type_aliases import Double1D, DoubleNBy6
@@ -28,7 +28,7 @@ def apply_rfft_to_data_list(data_list: list[DoubleNBy6], fs: float = 85) -> tupl
     # Determine the longest sequence length among all files
     max_T = max(d.shape[0] for d in data_list)
     # Pre‑compute a full‑length Hamming window for padding cases
-    full_win = np.hamming(max_T)[:, None]
+    full_win = hamming(max_T)[:, None]
     fft_mag_list: list[DoubleNBy6] = []
 
     for data in data_list:
@@ -39,7 +39,7 @@ def apply_rfft_to_data_list(data_list: list[DoubleNBy6], fs: float = 85) -> tupl
         T_cur = data_centered.shape[0]
         if T_cur < max_T:
             pad_len = max_T - T_cur
-            data_padded = np.pad(data_centered, ((0, pad_len), (0, 0)), mode="constant")
+            data_padded = pad(data_centered, ((0, pad_len), (0, 0)), mode="constant")
         else:
             data_padded = data_centered  # already the longest one
 
@@ -48,7 +48,7 @@ def apply_rfft_to_data_list(data_list: list[DoubleNBy6], fs: float = 85) -> tupl
 
         # 4. rFFT -> (N_freq, 6)
         spec = rfft(windowed, axis=0)
-        mag = cast(DoubleNBy6, 20 * np.log10(np.abs(spec) + 1e-12))  # dB，避免 log(0)
+        mag = cast(DoubleNBy6, 20 * log10(abs(spec) + 1e-12))  # dB，避免 log(0)
 
         fft_mag_list.append(mag)
 
@@ -80,7 +80,7 @@ def apply_fft_to_data_list(data_list: list[DoubleNBy6], fs: float = 85) -> tuple
     # 找出最長序列長度
     max_T = max(d.shape[0] for d in data_list)
     # 預先計算完整長度的 Hamming 窗
-    full_win = np.hamming(max_T)[:, None]
+    full_win = hamming(max_T)[:, None]
     fft_mag_list: list[DoubleNBy6] = []
 
     for data in data_list:
@@ -91,7 +91,7 @@ def apply_fft_to_data_list(data_list: list[DoubleNBy6], fs: float = 85) -> tuple
         T_cur = data_centered.shape[0]
         if T_cur < max_T:
             pad_len = max_T - T_cur
-            data_padded = np.pad(data_centered, ((0, pad_len), (0, 0)), mode="constant")
+            data_padded = pad(data_centered, ((0, pad_len), (0, 0)), mode="constant")
         else:
             data_padded = data_centered  # 已經是最長序列
 
@@ -100,7 +100,7 @@ def apply_fft_to_data_list(data_list: list[DoubleNBy6], fs: float = 85) -> tuple
 
         # 4. FFT -> (N_freq, 6)，包含正負頻率
         spec = fft(windowed, axis=0)
-        mag = cast(DoubleNBy6, np.abs(spec))
+        mag = cast(DoubleNBy6, abs(spec))
         fft_mag_list.append(mag)
 
     # 共用一條以最長序列為基準的頻率軸（包含正負頻率）
