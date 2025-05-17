@@ -1,14 +1,13 @@
 import glob
 import os
-import ast
 from datetime import datetime
-
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
-from fft import apply_fft_to_data_list, apply_rfft_to_data_list
+from fft import apply_rfft_to_data_list
 from visualization import plot_overlay_metrics, plot_overlay_metrics_fft, plot_six_metrics, plot_six_metrics_fft
+from type_aliases import DoubleNBy6
+from typing import cast
+from collections.abc import Callable
 
 TRAINING_DATA_BASE_PATH = "39_Training_Dataset/train_data/"
 TRAINING_DATA_METADATA_PATH = "39_Training_Dataset/train_info.csv"
@@ -29,20 +28,21 @@ def main():
 
     file_list = [2, 22]
 
-    data_list = []
+    data_list: list[DoubleNBy6] = []
 
     for file in file_list:
         file_path = os.path.join(TRAINING_DATA_BASE_PATH, f"{file}.txt")
         if os.path.exists(file_path):
-            data = np.loadtxt(file_path)
+            data = cast(DoubleNBy6, np.loadtxt(file_path))
             data_list.append(data)
         else:
             print(f"Warning: {file_path} not found.")
 
     print(f"Loaded {len(data_list)} files.")
 
-    meta_data = pd.read_csv(TRAINING_DATA_METADATA_PATH)
-    meta_data["cut_point"] = meta_data["cut_point"].apply(lambda s: np.fromstring(s.strip()[1:-1], sep=' ', dtype=int).tolist())
+    meta_data = pd.read_csv(TRAINING_DATA_METADATA_PATH) # pyright: ignore[reportUnknownMemberType]
+    cut_points_to_int_list: Callable[[str], list[int]] = lambda s: np.fromstring(s.strip()[1:-1], sep=' ', dtype=int).tolist()
+    meta_data["cut_point"] = meta_data["cut_point"].apply(cut_points_to_int_list) # pyright: ignore[reportUnknownMemberType]
 
 
     # print(meta_data.head(), meta_data.columns)
@@ -60,7 +60,7 @@ def main():
             TITLES,
             save_path=output_dir,
             prefix=f"{file_list[i]}",
-            cut_points=meta_data["cut_point"][file_list[i]-1],
+            cut_points=cast(list[int], meta_data.loc[file_list[i], "cut_point"]),
         )
 
     # plot_overlay_metrics

@@ -1,8 +1,9 @@
 import numpy as np
+from typing import cast
 from scipy.fft import fft, fftfreq, rfft, rfftfreq
+from type_aliases import Double1D, DoubleNBy6
 
-
-def apply_rfft_to_data_list(data_list, fs=85):
+def apply_rfft_to_data_list(data_list: list[DoubleNBy6], fs: float = 85) -> tuple[Double1D, list[DoubleNBy6]]:
     """
     對 data_list 中的每筆 (T,6) 時域資料：
       1. 去均值 (DC removal)
@@ -19,7 +20,7 @@ def apply_rfft_to_data_list(data_list, fs=85):
 
     回傳
     -------
-    freqs : 1‑D ndarray
+    freqs : 1-D ndarray
         真實頻率刻度 (Hz)，長度 = T//2 + 1
     fft_mag_list : list[np.ndarray]
         每筆 shape = (T//2+1, 6) 的 dB 幅值頻譜
@@ -28,11 +29,11 @@ def apply_rfft_to_data_list(data_list, fs=85):
     max_T = max(d.shape[0] for d in data_list)
     # Pre‑compute a full‑length Hamming window for padding cases
     full_win = np.hamming(max_T)[:, None]
-    fft_mag_list = []
+    fft_mag_list: list[DoubleNBy6] = []
 
     for data in data_list:
         # 1. 去均值
-        data_centered = data - data.mean(axis=0, keepdims=True)
+        data_centered: DoubleNBy6 = data - data.mean(axis=0, keepdims=True)
 
         # 2. 如有需要，zero‑pad 到 max_T
         T_cur = data_centered.shape[0]
@@ -47,7 +48,7 @@ def apply_rfft_to_data_list(data_list, fs=85):
 
         # 4. rFFT -> (N_freq, 6)
         spec = rfft(windowed, axis=0)
-        mag = 20 * np.log10(np.abs(spec) + 1e-12)  # dB，避免 log(0)
+        mag = cast(DoubleNBy6, 20 * np.log10(np.abs(spec) + 1e-12))  # dB，避免 log(0)
 
         fft_mag_list.append(mag)
 
@@ -56,7 +57,7 @@ def apply_rfft_to_data_list(data_list, fs=85):
     return freqs, fft_mag_list
 
 
-def apply_fft_to_data_list(data_list, fs=85):
+def apply_fft_to_data_list(data_list: list[DoubleNBy6], fs: float = 85) -> tuple[Double1D, list[DoubleNBy6]]:
     """
     對 data_list 中的每筆 (T,6) 時域資料應用標準FFT處理。
     與 apply_rfft_to_data_list 不同，此函數保留完整頻譜（正負頻率）。
@@ -80,11 +81,11 @@ def apply_fft_to_data_list(data_list, fs=85):
     max_T = max(d.shape[0] for d in data_list)
     # 預先計算完整長度的 Hamming 窗
     full_win = np.hamming(max_T)[:, None]
-    fft_mag_list = []
+    fft_mag_list: list[DoubleNBy6] = []
 
     for data in data_list:
         # 1. 去均值
-        data_centered = data - data.mean(axis=0, keepdims=True)
+        data_centered: DoubleNBy6 = data - data.mean(axis=0, keepdims=True)
 
         # 2. 如有需要，zero-pad 到 max_T
         T_cur = data_centered.shape[0]
@@ -99,7 +100,7 @@ def apply_fft_to_data_list(data_list, fs=85):
 
         # 4. FFT -> (N_freq, 6)，包含正負頻率
         spec = fft(windowed, axis=0)
-        mag = np.abs(spec)
+        mag = cast(DoubleNBy6, np.abs(spec))
         fft_mag_list.append(mag)
 
     # 共用一條以最長序列為基準的頻率軸（包含正負頻率）

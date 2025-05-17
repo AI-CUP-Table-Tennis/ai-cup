@@ -1,7 +1,7 @@
-from typing import Any, List, Optional
-
 import matplotlib.pyplot as plt
-import numpy as np
+from type_aliases import Double1D, DoubleNBy6, Axes2D
+from matplotlib.figure import Figure
+from matplotlib.axes import Axes
 
 LINE_WIDTH = 0.7
 FONT_FAMILY = ["SF Pro", "Noto Sans TC"]
@@ -11,11 +11,11 @@ plt.rcParams["font.family"] = FONT_FAMILY
 
 # 新增函式：繪製六個維度的資料於一張圖中的六個子圖
 def plot_six_metrics(
-    data: np.ndarray[Any, np.dtype[Any]],
-    titles: List[str],
-    save_path: Optional[str] = None,
+    data: DoubleNBy6,
+    titles: list[str],
+    save_path: str | None = None,
     prefix: str = "plot",
-    cut_points: Optional[List[int]] = None,
+    cut_points: list[int] | None = None,
 ) -> None:
     """
     Plots all 6 metrics in one figure with subplots.
@@ -28,28 +28,30 @@ def plot_six_metrics(
     """
 
     plt.rcParams["axes.unicode_minus"] = False
-    fig, axes = plt.subplots(3, 2, figsize=(15, 10), sharex=False)
-    axes = axes.flatten()
+    fig: Figure
+    axes: Axes2D
+    fig, axes = plt.subplots(3, 2, figsize=(15, 10), sharex=False) # pyright: ignore[reportUnknownMemberType]
+    axes_flattened = axes.flatten()
     for i in range(6):
-        ax = axes[i]
-        ax.plot(data[:, i], linewidth=LINE_WIDTH)
-        ax.set_ylabel(titles[i])
-        ax.grid(True)
-        ax.set_xlabel("Time Step")
+        ax: Axes = axes_flattened[i]
+        ax.plot(data[:, i], linewidth=LINE_WIDTH) # pyright: ignore[reportUnknownMemberType]
+        ax.set_ylabel(titles[i]) # pyright: ignore[reportUnknownMemberType]
+        ax.grid(True) # pyright: ignore[reportUnknownMemberType]
+        ax.set_xlabel("Time Step") # pyright: ignore[reportUnknownMemberType]
         for cut_point in cut_points or []:
-            ax.axvline(x=cut_point, color='red', linestyle='-', linewidth=0.5)
-    _ = fig.suptitle(f"File {prefix} Metrics")
+            ax.axvline(x=cut_point, color='red', linestyle='-', linewidth=0.5) # pyright: ignore[reportUnknownMemberType]
+    fig.suptitle(f"File {prefix} Metrics") # pyright: ignore[reportUnknownMemberType]
     plt.tight_layout()
     if save_path is not None:
-        fig.savefig(f"{save_path}/{prefix}.png")
+        fig.savefig(f"{save_path}/{prefix}.png") # pyright: ignore[reportUnknownMemberType]
     plt.close(fig)
 
 
 def plot_overlay_metrics(
-    data_list: np.ndarray[Any, np.dtype[Any]],
-    file_list: List[str],
-    titles: List[str],
-    save_path: Optional[str],
+    data_list: list[DoubleNBy6],
+    file_list: list[int],
+    titles: list[str],
+    save_path: str | None,
 ):
     """
     Plots overlay of same metrics from different data sources.
@@ -60,29 +62,31 @@ def plot_overlay_metrics(
     - titles: list of y-axis labels for each metric
     - save_path: where to save the output figure
     """
-    fig, axes = plt.subplots(3, 2, figsize=(15, 10))
-    axes = axes.flatten()
+    fig: Figure
+    axes: Axes2D
+    fig, axes = plt.subplots(3, 2, figsize=(15, 10)) # pyright: ignore[reportUnknownMemberType]
+    axes_flattened = axes.flatten()
     for i in range(6):
-        ax = axes[i]
+        ax = axes_flattened[i]
         for idx, data in enumerate(data_list):
             ax.plot(data[:, i], label=f"File {file_list[idx]}", linewidth=LINE_WIDTH)
         ax.set_title(titles[i])
         ax.set_xlabel("Time Step")
         ax.set_ylabel(titles[i])
         ax.legend()
-    _ = fig.suptitle("Overlay Metrics Comparison")
+    fig.suptitle("Overlay Metrics Comparison") # pyright: ignore[reportUnknownMemberType]
     plt.tight_layout()
 
     if save_path is not None:
-        fig.savefig(f"{save_path}")
+        fig.savefig(f"{save_path}") # pyright: ignore[reportUnknownMemberType]
     plt.close()
 
 
 def plot_six_metrics_fft(
-    data: np.ndarray[Any, np.dtype[Any]],
-    fftfreq: np.ndarray[Any, np.dtype[Any]],
-    titles: List[str],
-    save_path: Optional[str] = None,
+    data: DoubleNBy6,
+    fftfreq: Double1D,
+    titles: list[str],
+    save_path: str | None = None,
     prefix: str = "plot",
 ) -> None:
     """
@@ -96,10 +100,12 @@ def plot_six_metrics_fft(
     """
 
     plt.rcParams["axes.unicode_minus"] = False
-    fig, axes = plt.subplots(3, 2, figsize=(15, 10), sharex=False)
-    axes = axes.flatten()
+    fig: Figure
+    axes: Axes2D
+    fig, axes = plt.subplots(3, 2, figsize=(15, 10), sharex=False) # pyright: ignore[reportUnknownMemberType]
+    axes_flattened = axes.flatten()
     for i in range(6):
-        ax = axes[i]
+        ax = axes_flattened[i]
         ax.semilogy(fftfreq, data[:, i], linewidth=LINE_WIDTH)
         ax.set_title(titles[i])
         ax.set_ylabel(titles[i])
@@ -108,19 +114,19 @@ def plot_six_metrics_fft(
         ax.set_xlabel("Frequency (Hz)")
         ax.set_ylabel("Amplitude")
 
-    _ = fig.suptitle(f"File {prefix} Metrics")
+    fig.suptitle(f"File {prefix} Metrics") # pyright: ignore[reportUnknownMemberType]
     plt.tight_layout()
     if save_path is not None:
-        fig.savefig(f"{save_path}/{prefix}.png")
+        fig.savefig(f"{save_path}/{prefix}.png") # pyright: ignore[reportUnknownMemberType]
     plt.close(fig)
 
 
 def plot_overlay_metrics_fft(
-    data_list: List[np.ndarray[Any, np.dtype[Any]]],
-    fftfreq: np.ndarray[Any, np.dtype[Any]],
-    file_list: List[str],
-    titles: List[str],
-    save_path: Optional[str],
+    data_list: list[DoubleNBy6],
+    fftfreq: Double1D,
+    file_list: list[int],
+    titles: list[str],
+    save_path: str | None,
 ):
     """
     Plots overlay of same metrics from different data sources.
@@ -131,10 +137,12 @@ def plot_overlay_metrics_fft(
     - titles: list of y-axis labels for each metric
     - save_path: where to save the output figure
     """
-    fig, axes = plt.subplots(3, 2, figsize=(15, 10))
-    axes = axes.flatten()
+    fig: Figure
+    axes: Axes2D
+    fig, axes = plt.subplots(3, 2, figsize=(15, 10), sharex=False) # pyright: ignore[reportUnknownMemberType]
+    axes_flattened = axes.flatten()
     for i in range(6):
-        ax = axes[i]
+        ax = axes_flattened[i]
         for idx, data in enumerate(data_list):
             ax.semilogy(fftfreq, data[:, i], label=f"File {file_list[idx]}", linewidth=LINE_WIDTH)
         ax.set_title(titles[i])
@@ -144,9 +152,9 @@ def plot_overlay_metrics_fft(
         ax.set_xlabel("Frequency (Hz)")
         ax.set_ylabel("Amplitude")
 
-    _ = fig.suptitle("Overlay Metrics Comparison")
+    fig.suptitle("Overlay Metrics Comparison") # pyright: ignore[reportUnknownMemberType]
     plt.tight_layout()
 
     if save_path is not None:
-        fig.savefig(f"{save_path}")
+        fig.savefig(f"{save_path}") # pyright: ignore[reportUnknownMemberType]
     plt.close()
