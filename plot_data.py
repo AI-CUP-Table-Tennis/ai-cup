@@ -8,6 +8,7 @@ from visualization import plot_overlay_metrics, plot_overlay_metrics_fft, plot_s
 from type_aliases import DoubleNBy6
 from typing import cast
 from collections.abc import Callable
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 TRAINING_DATA_BASE_PATH = "39_Training_Dataset/train_data/"
 TRAINING_DATA_METADATA_PATH = "39_Training_Dataset/train_info.csv"
@@ -25,8 +26,10 @@ OUTPUT_FOLDER_PREFIX = datetime.now().strftime("%Y%m%d_%H%M%S")
 
 
 def main():
-
-    file_list = [2, 22]
+    argument_parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
+    argument_parser.add_argument("training_data_indices", nargs="+", type=int, help="The indices of the training data to plot.")
+    args = argument_parser.parse_args()
+    file_list: list[int] = args.training_data_indices
 
     data_list: list[DoubleNBy6] = []
 
