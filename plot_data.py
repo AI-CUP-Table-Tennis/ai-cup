@@ -2,7 +2,7 @@ from glob import glob
 from os import path, makedirs
 from datetime import datetime
 from numpy import loadtxt, fromstring
-from pandas import read_csv # pyright: ignore[reportUnknownVariableType]
+from pandas import read_csv  # pyright: ignore[reportUnknownVariableType]
 from fft import apply_rfft_to_data_list
 from visualization import plot_overlay_metrics, plot_overlay_metrics_fft, plot_six_metrics, plot_six_metrics_fft
 from type_aliases import DoubleNBy6
@@ -27,7 +27,9 @@ OUTPUT_FOLDER_PREFIX = datetime.now().strftime("%Y%m%d_%H%M%S")
 
 def main():
     argument_parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
-    argument_parser.add_argument("training_data_indices", nargs="+", type=int, help="The indices of the training data to plot.")
+    argument_parser.add_argument(
+        "training_data_indices", nargs="+", type=int, help="The indices of the training data to plot."
+    )
     args = argument_parser.parse_args()
     file_list: list[int] = args.training_data_indices
 
@@ -44,9 +46,12 @@ def main():
     print(f"Loaded {len(data_list)} files.")
 
     meta_data = read_csv(TRAINING_DATA_METADATA_PATH)
-    cut_points_to_int_list: Callable[[str], list[int]] = lambda s: fromstring(s.strip()[1:-1], sep=' ', dtype=int).tolist()
-    meta_data["cut_point"] = meta_data["cut_point"].apply(cut_points_to_int_list) # pyright: ignore[reportUnknownMemberType]
-
+    cut_points_to_int_list: Callable[[str], list[int]] = lambda s: fromstring(
+        s.strip()[1:-1], sep=" ", dtype=int
+    ).tolist()
+    meta_data["cut_point"] = meta_data["cut_point"].apply(  # pyright: ignore[reportUnknownMemberType]
+        cut_points_to_int_list
+    )
 
     # print(meta_data.head(), meta_data.columns)
     # print(meta_data["cut_point"][1])

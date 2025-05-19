@@ -1,22 +1,23 @@
-from matplotlib.pyplot import rcParams, subplots, tight_layout, close # pyright: ignore[reportUnknownVariableType]
+from matplotlib.pyplot import rcParams, subplots, tight_layout, close  # pyright: ignore[reportUnknownVariableType]
 from type_aliases import Double1D, DoubleNBy6, Axes2D
 from matplotlib.figure import Figure
 from matplotlib.axes import Axes
 
 LINE_WIDTH = 0.7
 FONT_FAMILIES = [
-    "SF Pro",
     "Noto Sans TC",
     "Noto Sans CJK HK",
     "Noto Sans CJK JP",
     "Noto Sans CJK KR",
     "Noto Sans CJK SC",
-    "Noto Sans CJK TC"]
+    "Noto Sans CJK TC",
+]
 
 # Don't set font.family directly. This makes it so that Matplotlib tries to find
 # if any of the fonts in font.sans-serif exist before failing.
 rcParams["font.family"] = "sans-serif"
 rcParams["font.sans-serif"] = FONT_FAMILIES
+
 
 # 新增函式：繪製六個維度的資料於一張圖中的六個子圖
 def plot_six_metrics(
@@ -42,16 +43,18 @@ def plot_six_metrics(
     axes_flattened = axes.flatten()
     for i in range(6):
         ax: Axes = axes_flattened[i]
-        ax.plot(data[:, i], linewidth=LINE_WIDTH) # pyright: ignore[reportUnknownMemberType]
-        ax.set_ylabel(titles[i]) # pyright: ignore[reportUnknownMemberType]
-        ax.grid(True) # pyright: ignore[reportUnknownMemberType]
-        ax.set_xlabel("Time Step") # pyright: ignore[reportUnknownMemberType]
+        ax.plot(data[:, i], linewidth=LINE_WIDTH)  # pyright: ignore[reportUnknownMemberType]
+        ax.set_ylabel(titles[i])  # pyright: ignore[reportUnknownMemberType]
+        ax.grid(True)  # pyright: ignore[reportUnknownMemberType]
+        ax.set_xlabel("Time Step")  # pyright: ignore[reportUnknownMemberType]
         for cut_point in cut_points or []:
-            ax.axvline(x=cut_point, color='red', linestyle='-', linewidth=0.5) # pyright: ignore[reportUnknownMemberType]
-    fig.suptitle(f"File {prefix} Metrics") # pyright: ignore[reportUnknownMemberType]
+            ax.axvline(  # pyright: ignore[reportUnknownMemberType]
+                x=cut_point, color="red", linestyle="-", linewidth=0.5
+            )
+    fig.suptitle(f"File {prefix} Metrics")  # pyright: ignore[reportUnknownMemberType]
     tight_layout()
     if save_path is not None:
-        fig.savefig(f"{save_path}/{prefix}.png") # pyright: ignore[reportUnknownMemberType]
+        fig.savefig(f"{save_path}/{prefix}.png")  # pyright: ignore[reportUnknownMemberType]
     close(fig)
 
 
@@ -82,11 +85,11 @@ def plot_overlay_metrics(
         ax.set_xlabel("Time Step")
         ax.set_ylabel(titles[i])
         ax.legend()
-    fig.suptitle("Overlay Metrics Comparison") # pyright: ignore[reportUnknownMemberType]
+    fig.suptitle("Overlay Metrics Comparison")  # pyright: ignore[reportUnknownMemberType]
     tight_layout()
 
     if save_path is not None:
-        fig.savefig(f"{save_path}") # pyright: ignore[reportUnknownMemberType]
+        fig.savefig(f"{save_path}")  # pyright: ignore[reportUnknownMemberType]
     close()
 
 
@@ -121,10 +124,10 @@ def plot_six_metrics_fft(
         ax.set_xlabel("Frequency (Hz)")
         ax.set_ylabel("Amplitude")
 
-    fig.suptitle(f"File {prefix} Metrics") # pyright: ignore[reportUnknownMemberType]
+    fig.suptitle(f"File {prefix} Metrics")  # pyright: ignore[reportUnknownMemberType]
     tight_layout()
     if save_path is not None:
-        fig.savefig(f"{save_path}/{prefix}.png") # pyright: ignore[reportUnknownMemberType]
+        fig.savefig(f"{save_path}/{prefix}.png")  # pyright: ignore[reportUnknownMemberType]
     close(fig)
 
 
@@ -159,9 +162,9 @@ def plot_overlay_metrics_fft(
         ax.set_xlabel("Frequency (Hz)")
         ax.set_ylabel("Amplitude")
 
-    fig.suptitle("Overlay Metrics Comparison") # pyright: ignore[reportUnknownMemberType]
+    fig.suptitle("Overlay Metrics Comparison")  # pyright: ignore[reportUnknownMemberType]
     tight_layout()
 
     if save_path is not None:
-        fig.savefig(f"{save_path}") # pyright: ignore[reportUnknownMemberType]
+        fig.savefig(f"{save_path}")  # pyright: ignore[reportUnknownMemberType]
     close()

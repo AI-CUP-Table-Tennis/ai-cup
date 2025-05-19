@@ -3,6 +3,7 @@ from typing import cast
 from scipy.fft import fft, fftfreq, rfft, rfftfreq
 from type_aliases import Double1D, DoubleNBy6
 
+
 def apply_rfft_to_data_list(data_list: list[DoubleNBy6], fs: float = 85) -> tuple[Double1D, list[DoubleNBy6]]:
     """
     對 data_list 中的每筆 (T,6) 時域資料：

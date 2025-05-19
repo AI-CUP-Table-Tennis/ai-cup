@@ -11,3 +11,16 @@ dependencies = [
     "scipy >= 1.15.3",
     "scipy-stubs>=1.15.3.0",
 ]
+
+[tool.pyright]
+typeCheckingMode = "strict"
+diagnosticMode = "workspace"
+reportCallInDefaultInitializer = "warning"
+reportImplicitOverride = "warning"
+reportImplicitStringConcatenation = "warning"
+reportImportCycles = "warning"
+reportMissingSuperCall = "warning"
+reportPropertyTypeMismatch = "warning"
+reportShadowedImports = "warning"
+reportUninitializedInstanceVariable = "warning"
+reportUnnecessaryTypeIgnoreComment = "warning"
