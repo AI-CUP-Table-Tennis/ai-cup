@@ -68,7 +68,7 @@ def main():
             TITLES,
             save_path=output_dir,
             prefix=f"{file_list[i]}",
-            cut_points=cast(list[int], meta_data.loc[file_list[i], "cut_point"]),
+            cut_points=cast(list[int], meta_data.loc[file_list[i]-1, "cut_point"]),
         )
 
     # plot_overlay_metrics
