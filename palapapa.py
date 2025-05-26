@@ -1,6 +1,6 @@
 from os import mkdir
 from typing import Final, cast
-from pandas import DataFrame, read_csv, concat # pyright: ignore[reportUnknownVariableType]
+from pandas import DataFrame, Series, read_csv, concat # pyright: ignore[reportUnknownVariableType]
 from os.path import join, exists
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, BooleanOptionalAction
 from shutil import rmtree
@@ -255,10 +255,10 @@ def generate_features():
         mkdir(TRAINING_FEATURES_PATH)
         mkdir(TESTING_FEATURES_PATH)
     # https://stackoverflow.com/questions/59148830/python-pandas-why-cant-i-use-both-index-col-and-usecols-in-the-same-read-csv
-    training_data_id_to_mode = read_csv(TRAINING_DATA_INFO_CSV_PATH, index_col="unique_id", usecols=["unique_id","mode"])
-    testing_data_id_to_mode = read_csv(TESTING_DATA_INFO_CSV_PATH, index_col="unique_id", usecols=["unique_id","mode"])
+    training_data_unique_id_to_mode = read_csv(TRAINING_DATA_INFO_CSV_PATH, index_col="unique_id", usecols=["unique_id","mode"])
+    testing_data_unique_id_to_mode = read_csv(TESTING_DATA_INFO_CSV_PATH, index_col="unique_id", usecols=["unique_id","mode"])
     # Used to know the mode number of each piece of training or testing txt
-    data_id_to_mode = concat([training_data_id_to_mode, testing_data_id_to_mode])
+    data_unique_id_to_mode = concat([training_data_unique_id_to_mode, testing_data_unique_id_to_mode])
     # Converts to lists so we can know the total number of files to generate and
     # make the last line of this function that checks which directory to save
     # the CSV in work.
@@ -272,7 +272,7 @@ def generate_features():
             sep=r"\s+",
             names=["acceleration_x", "acceleration_y", "acceleration_z", "angular_acceleration_x", "angular_acceleration_y", "angular_acceleration_z"])
         data_id = int(data_txt_path.stem)
-        mode = cast(int64, data_id_to_mode.loc[data_id, "mode"]).item() # .item() converts int64 to Python's int
+        mode = cast(int64, data_unique_id_to_mode.loc[data_id, "mode"]).item() # .item() converts int64 to Python's int
         features = generate_features_for_single_data(data, mode)
         # Converts the list of FeatureCsvRows into a list of dicts so that
         # pandas can write them to a CSV
@@ -282,39 +282,71 @@ def generate_features():
         # There is probably a better way of checking which directory to save in.
         features_data_frame.to_csv(join(TRAINING_FEATURES_PATH if data_txt_path in training_data_txt_paths else TESTING_FEATURES_PATH, f"{features_filename}.csv"), index=False)
 
-def check_feature_directory_existence():
+def check_feature_directory_existence(option_name: str):
     if not exists(FEATURES_BASE_PATH):
-        print("You need to generate the features of the training and testing data using the -g option before running this.")
+        print(f"You need to generate the features of the training and testing data using the -g option before using the {option_name} option.")
         exit(1)
 
-def check_model_existence():
+def check_model_existence(option_name: str):
     if not exists(MODEL_PATH):
-        print("You need to train the model using the -t option before running this.")
+        print(f"You need to train the model using the -t option before using the {option_name} option.")
         exit(1)
 
 def train_model():
-    check_feature_directory_existence()
+    check_feature_directory_existence("-t")
+    training_info = read_csv(TRAINING_DATA_INFO_CSV_PATH)
+    training_feature_csv_paths = Path(TRAINING_FEATURES_PATH).glob("*.csv")
+    # Collects all training feature CSVs into one big DataFrame used for
+    # training.
+    training_feature_data_frames: list[DataFrame] = []
+    target_column_names = ["gender", "hold racket handed", "play years", "level"]
+    # Uses a loop instead of a map to ensure that input_features and targets
+    # line up, so that one row in input_features corresponds to one row at the
+    # same position in features.
+    target_rows: list[Series[int]] = []
+    for training_feature_csv_path in training_feature_csv_paths:
+        training_feature_data_frames.append(read_csv(training_feature_csv_path))
+        unique_id = int(training_feature_csv_path.stem)
+        # Gets the row from training_info where the "unique_id" column equals
+        # `unique_id` and gets the 4 columns needed for training. The filtering
+        # by target_column_names must happen before iloc; otherwise, the
+        # resulting Series will have a dtype of object instead of int64. This is
+        # because a row in training_info contains a "cut_point" column, which
+        # does not contain ints. If we filter out that column first then call
+        # iloc, Pandas magically converts the resulting Series to have the dtype
+        # of int64 instead of object.
+        target_new_row = cast("Series[int]", training_info[training_info["unique_id"] == unique_id][target_column_names].iloc[0])
+        # No need to use ingore_index=True here because training_info is read
+        # from a single CSV.
+        target_rows.append(target_new_row)
+    # This is "X".
+    input_features = concat(training_feature_data_frames, ignore_index=True)
+    # This is "y".
+    targets = DataFrame(target_rows)
+    print(input_features)
+    print(targets)
 
 def generate_submission_csv():
-    check_feature_directory_existence()
-    check_model_existence()
+    check_feature_directory_existence("-p")
+    check_model_existence("-p")
 
 def main():
-    argument_parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
-    bool_flags_mutually_exclusive_group = argument_parser.add_mutually_exclusive_group(required=True)
-    bool_flags_mutually_exclusive_group.add_argument(
+    argument_parser = ArgumentParser(
+        formatter_class=ArgumentDefaultsHelpFormatter,
+        description="You need to specify at least one option; otherwise the script does nothing.")
+    argument_parser.add_argument(
         "-g",
         "--generate-features",
         help="Whether to generate the features required for training and prediction and then exit. (Will delete the features directory previously generated.)",
         default=False,
         action=BooleanOptionalAction)
-    bool_flags_mutually_exclusive_group.add_argument(
+    argument_parser.add_argument(
         "-t",
         "--train-model",
         help="Whether to train the model and saves it to the disk.",
         default=False,
         action=BooleanOptionalAction)
-    bool_flags_mutually_exclusive_group.add_argument(
+    argument_parser.add_argument(
         "-p",
         "--generate-submission-csv",
         help="Whether to use the model produced by supplying the -t flag to produce a CSV ready for submission to AI CUP.",
@@ -323,9 +355,9 @@ def main():
     args = argument_parser.parse_args()
     if args.generate_features:
         generate_features()
-    elif args.train_model:
+    if args.train_model:
         train_model()
-    elif args.generate_submission_csv:
+    if args.generate_submission_csv:
         generate_submission_csv()
 
 if __name__ == "__main__":
