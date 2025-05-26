@@ -1,3 +1,4 @@
+from math import nan
 from os import mkdir
 from typing import Final, cast
 from pandas import DataFrame, Series, read_csv, concat # pyright: ignore[reportUnknownVariableType]
@@ -8,7 +9,12 @@ from pathlib import Path
 from dataclasses import dataclass
 from numpy.fft import rfft
 from numpy import float64, int64
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import roc_auc_score # pyright: ignore[reportUnknownVariableType]
+from sklearn.model_selection import GroupKFold, GroupShuffleSplit
 from tqdm import tqdm
+from pickle import dump, HIGHEST_PROTOCOL
+from type_aliases import Double2D, Long1D
 
 TRAINING_DATA_BASE_PATH: Final = "./39_Training_Dataset"
 TESTING_DATA_BASE_PATH: Final = "./39_Test_Dataset"
@@ -292,9 +298,62 @@ def check_model_existence(option_name: str):
         print(f"You need to train the model using the -t option before using the {option_name} option.")
         exit(1)
 
+def print_scores(
+    validation_predictions: list[Double2D],
+    testing_predictions: list[Double2D],
+    fold_index: int,
+    validation_targets: DataFrame,
+    testing_targets: DataFrame):
+    print(f"Fold: {fold_index + 1}")
+
+    print(f"Gender validation ROC AUC score: {roc_auc_score(validation_targets["gender"], validation_predictions[0][:, 1])}")
+    print(f"Gender testing ROC AUC score: {roc_auc_score(testing_targets["gender"], testing_predictions[0][:, 1])}")
+
+    print(f"Handedness validation ROC AUC score: {roc_auc_score(validation_targets["hold racket handed"], validation_predictions[1][:, 1])}")
+    print(f"Handedness testing ROC AUC score: {roc_auc_score(testing_targets["hold racket handed"], testing_predictions[1][:, 1])}")
+
+    print(f"Experience validation ROC AUC score: {roc_auc_score(validation_targets["play years"], validation_predictions[2], average="micro", multi_class="ovr")}")
+    print(f"Experience testing ROC AUC score: {roc_auc_score(testing_targets["play years"], testing_predictions[2], average="micro", multi_class="ovr")}")
+
+    print(f"Level validation ROC AUC score: {roc_auc_score(validation_targets["level"], validation_predictions[3], average="micro", multi_class="ovr")}")
+    print(f"Level testing ROC AUC score: {roc_auc_score(testing_targets["level"], testing_predictions[3], average="micro", multi_class="ovr")}")
+
+def calculate_overall_score(
+    testing_predictions: list[Double2D],
+    testing_targets: DataFrame) -> float:
+    scores: list[float] = []
+    # There is a chance that some of these will fail to compute and throw
+    # ValueError because sometimes the testing set just won't have every
+    # possible label in the dataset because some labels appear very rarely. This
+    # is only compounded by the fact that the testing set only takes up a small
+    # portion of the dataset. So if any of the following fail to compute, we
+    # will just ignore it and calculate the average score without them. The
+    # conversion to float is needed because the return type of roc_auc_score is
+    # actually float | float16 | float32 | float64. The first two scores don't
+    # need a try-except statement because for some reason in the binary case,
+    # roc_auc_score just prints a warning to the terminal and returns NaN. It
+    # only throws for the multi-class case.
+    gender_score = float(roc_auc_score(testing_targets["gender"], testing_predictions[0][:, 1]))
+    if gender_score != nan:
+        scores.append(gender_score)
+    handedness_score = float(roc_auc_score(testing_targets["hold racket handed"], testing_predictions[1][:, 1]))
+    if handedness_score != nan:
+        scores.append(handedness_score)
+    # No need to check for NaNs for the following two cases since they just
+    # throw without returning any value.
+    try:
+        scores.append(float(roc_auc_score(testing_targets["play years"], testing_predictions[2], average="micro", multi_class="ovr")))
+    except ValueError:
+        pass
+    try:
+        scores.append(float(roc_auc_score(testing_targets["level"], testing_predictions[3], average="micro", multi_class="ovr")))
+    except ValueError:
+        pass
+    return sum(scores) / len(scores)
+
 def train_model():
     check_feature_directory_existence("-t")
-    training_info = read_csv(TRAINING_DATA_INFO_CSV_PATH)
+    training_info = read_csv(TRAINING_DATA_INFO_CSV_PATH, index_col="unique_id")
     training_feature_csv_paths = Path(TRAINING_FEATURES_PATH).glob("*.csv")
     # Collects all training feature CSVs into one big DataFrame used for
     # training.
@@ -302,8 +361,10 @@ def train_model():
     target_column_names = ["gender", "hold racket handed", "play years", "level"]
     # Uses a loop instead of a map to ensure that input_features and targets
     # line up, so that one row in input_features corresponds to one row at the
-    # same position in features.
+    # same position in features. Also builds up the groups list for use with
+    # GroupKFold.
     target_rows: list[Series[int]] = []
+    groups: list[int] = []
     for training_feature_csv_path in training_feature_csv_paths:
         training_feature_data_frames.append(read_csv(training_feature_csv_path))
         unique_id = int(training_feature_csv_path.stem)
@@ -315,17 +376,66 @@ def train_model():
         # does not contain ints. If we filter out that column first then call
         # iloc, Pandas magically converts the resulting Series to have the dtype
         # of int64 instead of object.
-        target_new_row = cast("Series[int]", training_info[training_info["unique_id"] == unique_id][target_column_names].iloc[0])
+        target_new_row = cast("Series[int]", training_info.loc[unique_id][target_column_names])
         # No need to use ingore_index=True here because training_info is read
         # from a single CSV.
         target_rows.append(target_new_row)
-    # This is "X".
+        groups.append(cast(int64, training_info.loc[unique_id, "player_id"]).item())
+    # This is "X". This contains all the data that will be split into a training
+    # set, validation set, and testing set below.
     input_features = concat(training_feature_data_frames, ignore_index=True)
-    # This is "y".
+    # This is "y". Same comment as above.
     targets = DataFrame(target_rows)
-    print(input_features)
-    print(targets)
-
+    group_k_fold = GroupKFold(shuffle=True) # pyright: ignore[reportCallIssue]
+    group_shuffle_split = GroupShuffleSplit(1, test_size=0.2)
+    # all_training_input_features and all_training_targets will then be further
+    # split into the real training set and the validation set. It is named
+    # "all_training_indices" because the names "training_indices" etc. have
+    # already been taken below.
+    all_training_indices: Long1D
+    testing_indices: Long1D
+    # Splits the whole dataset into a testing set, and the rest will be further
+    # split into a real training set and validation set.
+    all_training_indices, testing_indices = next(group_shuffle_split.split(input_features, targets, groups)) # pyright: ignore[reportUnknownMemberType]
+    all_training_input_features = input_features.iloc[all_training_indices]
+    all_training_targets = targets.iloc[all_training_indices]
+    # `groups` is for `input_features`. After splitting `input_features` etc.
+    # into a testing set and the real training set, we also need to adjust the
+    # size of `groups` so that it only contains the group numbers for the data
+    # in the real training set.
+    training_groups = [groups[i] for i in all_training_indices]
+    testing_input_features = input_features.iloc[testing_indices]
+    testing_targets = targets.iloc[testing_indices]
+    training_indices: Long1D
+    validation_indices: Long1D
+    best_random_forest_classifier: RandomForestClassifier | None = None
+    best_score = 0.0
+    best_random_forest_classifier_fold_index = 0
+    for fold_index, (training_indices, validation_indices) in enumerate(group_k_fold.split(all_training_input_features, all_training_targets, training_groups)): # pyright: ignore[reportUnknownMemberType]
+        random_forest_classifier = RandomForestClassifier(max_features="sqrt")
+        training_input_features = input_features.iloc[training_indices]
+        training_targets = targets.iloc[training_indices]
+        validation_input_features = input_features.iloc[validation_indices]
+        validation_targets = targets.iloc[validation_indices]
+        random_forest_classifier.fit(training_input_features, training_targets) # pyright: ignore[reportUnknownMemberType]
+        validation_predictions = cast(list[Double2D], random_forest_classifier.predict_proba(validation_input_features)) # pyright: ignore[reportUnknownMemberType]
+        testing_predictions = cast(list[Double2D], random_forest_classifier.predict_proba(testing_input_features)) # pyright: ignore[reportUnknownMemberType]
+        # See the comment inside calculate_overall_score to know why this try is
+        # needed.
+        try:
+            print_scores(validation_predictions, testing_predictions, fold_index, validation_targets, testing_targets)
+        except ValueError:
+            pass
+        score = calculate_overall_score(testing_predictions, testing_targets)
+        print(f"Overall score: {score}")
+        if score > best_score:
+            best_score = score
+            best_random_forest_classifier = random_forest_classifier
+            best_random_forest_classifier_fold_index = fold_index
+    with open(MODEL_PATH, "wb") as model_file:
+        dump(best_random_forest_classifier, model_file, protocol=HIGHEST_PROTOCOL)
+        print(f"Save the trained model (fold {best_random_forest_classifier_fold_index + 1}) to {MODEL_PATH}.")
+        
 def generate_submission_csv():
     check_feature_directory_existence("-p")
     check_model_existence("-p")
