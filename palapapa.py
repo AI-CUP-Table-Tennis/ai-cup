@@ -1,4 +1,4 @@
-from math import nan
+from math import isnan
 from os import mkdir
 from typing import Final, cast
 from pandas import DataFrame, Series, read_csv, concat # pyright: ignore[reportUnknownVariableType]
@@ -335,10 +335,10 @@ def calculate_overall_score(
     # roc_auc_score just prints a warning to the terminal and returns NaN. It
     # only throws for the multi-class case.
     gender_score = float(roc_auc_score(testing_targets["gender"], testing_predictions[0][:, 1]))
-    if gender_score != nan:
+    if not isnan(gender_score):
         scores.append(gender_score)
     handedness_score = float(roc_auc_score(testing_targets["hold racket handed"], testing_predictions[1][:, 1]))
-    if handedness_score != nan:
+    if not isnan(handedness_score):
         scores.append(handedness_score)
     # No need to check for NaNs for the following two cases since they just
     # throw without returning any value.
@@ -384,40 +384,38 @@ def train_model():
         groups.append(cast(int64, training_info.loc[unique_id, "player_id"]).item())
     # This is "X". This contains all the data that will be split into a training
     # set, validation set, and testing set below.
-    input_features = concat(training_feature_data_frames, ignore_index=True)
+    all_input_features = concat(training_feature_data_frames, ignore_index=True)
     # This is "y". Same comment as above.
-    targets = DataFrame(target_rows)
+    all_targets = DataFrame(target_rows)
     group_k_fold = GroupKFold(shuffle=True) # pyright: ignore[reportCallIssue]
     group_shuffle_split = GroupShuffleSplit(1, test_size=0.2)
-    # all_training_input_features and all_training_targets will then be further
-    # split into the real training set and the validation set. It is named
-    # "all_training_indices" because the names "training_indices" etc. have
-    # already been taken below.
-    all_training_indices: Long1D
+    # training_and_validation_input_features and training_and_validation_targets
+    # will then be further split into the training set and the validation set.
+    training_and_validation_indices: Long1D
     testing_indices: Long1D
     # Splits the whole dataset into a testing set, and the rest will be further
-    # split into a real training set and validation set.
-    all_training_indices, testing_indices = next(group_shuffle_split.split(input_features, targets, groups)) # pyright: ignore[reportUnknownMemberType]
-    all_training_input_features = input_features.iloc[all_training_indices]
-    all_training_targets = targets.iloc[all_training_indices]
-    # `groups` is for `input_features`. After splitting `input_features` etc.
-    # into a testing set and the real training set, we also need to adjust the
-    # size of `groups` so that it only contains the group numbers for the data
-    # in the real training set.
-    training_groups = [groups[i] for i in all_training_indices]
-    testing_input_features = input_features.iloc[testing_indices]
-    testing_targets = targets.iloc[testing_indices]
+    # split into a training set and validation set.
+    training_and_validation_indices, testing_indices = next(group_shuffle_split.split(all_input_features, all_targets, groups)) # pyright: ignore[reportUnknownMemberType]
+    training_and_validation_input_features = all_input_features.iloc[training_and_validation_indices]
+    training_and_validation_targets = all_targets.iloc[training_and_validation_indices]
+    # `groups` is for `all_input_features`. After splitting `all_input_features`
+    # etc. into a testing set and the training-and-validation set, we also need
+    # to adjust the size of `groups` so that it only contains the group numbers
+    # for the data in the training-and-validation set.
+    training_and_validation_groups = [groups[i] for i in training_and_validation_indices]
+    testing_input_features = all_input_features.iloc[testing_indices]
+    testing_targets = all_targets.iloc[testing_indices]
     training_indices: Long1D
     validation_indices: Long1D
     best_random_forest_classifier: RandomForestClassifier | None = None
     best_score = 0.0
     best_random_forest_classifier_fold_index = 0
-    for fold_index, (training_indices, validation_indices) in enumerate(group_k_fold.split(all_training_input_features, all_training_targets, training_groups)): # pyright: ignore[reportUnknownMemberType]
+    for fold_index, (training_indices, validation_indices) in enumerate(group_k_fold.split(training_and_validation_input_features, training_and_validation_targets, training_and_validation_groups)): # pyright: ignore[reportUnknownMemberType]
         random_forest_classifier = RandomForestClassifier(max_features="sqrt")
-        training_input_features = all_training_input_features.iloc[training_indices]
-        training_targets = all_training_targets.iloc[training_indices]
-        validation_input_features = all_training_input_features.iloc[validation_indices]
-        validation_targets = all_training_targets.iloc[validation_indices]
+        training_input_features = training_and_validation_input_features.iloc[training_indices]
+        training_targets = training_and_validation_targets.iloc[training_indices]
+        validation_input_features = training_and_validation_input_features.iloc[validation_indices]
+        validation_targets = training_and_validation_targets.iloc[validation_indices]
         random_forest_classifier.fit(training_input_features, training_targets) # pyright: ignore[reportUnknownMemberType]
         validation_predictions = cast(list[Double2D], random_forest_classifier.predict_proba(validation_input_features)) # pyright: ignore[reportUnknownMemberType]
         testing_predictions = cast(list[Double2D], random_forest_classifier.predict_proba(testing_input_features)) # pyright: ignore[reportUnknownMemberType]
