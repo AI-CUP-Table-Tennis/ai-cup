@@ -8,11 +8,11 @@ Tutorial: [Installing uv](https://docs.astral.sh/uv/getting-started/installation
 
 ### 2. `uv sync`
 
-use `uv sync` to install the dependencies
+Use `uv sync` to install the dependencies.
 
 ### 3. `uv run`
 
-use `uv run <python file>` to run the python file
+Use `uv run <python file>` to run the python file.
 
 ## Installing new packages
 
@@ -26,7 +26,7 @@ Use `uv add <package name>` to install a new package. It will automatically add 
 
 This script uses `RandomForestClassifier` to do predictions. To generate the
 features required for training and inference, train the model, and output the
-prediction all in one go, simple run:
+predictions all in one go, simply run:
 
 ```bash
 uv run palapapa.py -gpt
