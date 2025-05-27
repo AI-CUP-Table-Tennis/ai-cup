@@ -8,12 +8,12 @@ from shutil import rmtree
 from pathlib import Path
 from dataclasses import dataclass
 from numpy.fft import rfft
-from numpy import float64, int64
+from numpy import float64, int64, object_
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import roc_auc_score # pyright: ignore[reportUnknownVariableType]
 from sklearn.model_selection import GroupKFold, GroupShuffleSplit
 from tqdm import tqdm
-from pickle import dump, HIGHEST_PROTOCOL
+from pickle import dump, load, HIGHEST_PROTOCOL
 from type_aliases import Double2D, Long1D
 
 TRAINING_DATA_BASE_PATH: Final = "./39_Training_Dataset"
@@ -26,6 +26,7 @@ FEATURES_BASE_PATH: Final = "./output/random_forest_features"
 TRAINING_FEATURES_PATH: Final = join(FEATURES_BASE_PATH, "train")
 TESTING_FEATURES_PATH: Final = join(FEATURES_BASE_PATH, "test")
 MODEL_PATH: Final = "./output/random_forest.pkl"
+SUBMISSION_CSV_PATH: Final = "./output/random_forest_submission.csv"
 
 @dataclass
 class FeatureCsvRow:
@@ -439,6 +440,39 @@ def train_model():
 def generate_submission_csv():
     check_feature_directory_existence("-p")
     check_model_existence("-p")
+    with open(MODEL_PATH, "rb") as model_file:
+        random_forest_classifier: RandomForestClassifier = load(model_file)
+    # Converts to a list so tqdm can know the total number of files.
+    testing_feature_csv_paths = list(Path(TESTING_FEATURES_PATH).glob("*.csv"))
+    prediction_csv_rows: list[Series[int | float]] = []
+    for testing_feature_csv_path in tqdm(testing_feature_csv_paths, "Generating the submission CSV", unit="row"):
+        testing_features = read_csv(testing_feature_csv_path)
+        testing_predictions = cast(list[Double2D], random_forest_classifier.predict_proba(testing_features)) # pyright: ignore[reportUnknownMemberType]
+        prediction_dict: dict[str, int | float] = {
+            "unique_id": int(testing_feature_csv_path.stem),
+            # Since we are generating predictions one at a time,
+            # testing_predictions contains ndarrays that all have only one row.
+            # We use [0 ,0] here because we want the probability of the player
+            # being male, not female.
+            "gender": testing_predictions[0][0, 0],
+            # Same here, we use [0, 0] because we want the probability of the
+            # player being right-handed, not left-handed.
+            "hold racket handed": testing_predictions[1][0, 0],
+            "play years_0": testing_predictions[2][0, 0],
+            "play years_1": testing_predictions[2][0, 1],
+            "play years_2": testing_predictions[2][0, 2],
+            "level_2": testing_predictions[3][0, 0],
+            "level_3": testing_predictions[3][0, 1],
+            "level_4": testing_predictions[3][0, 2],
+            "level_5": testing_predictions[3][0, 3]
+        }
+        # Uses dtype=object_ so that the unique_id column won't have decimal
+        # points.
+        prediction_csv_rows.append(Series(prediction_dict, dtype=object_))
+    prediction_data_frame = DataFrame(prediction_csv_rows)
+    prediction_data_frame.set_index("unique_id", inplace=True) # pyright: ignore[reportUnknownMemberType]
+    prediction_data_frame.sort_index(inplace=True) # pyright: ignore[reportUnknownMemberType]
+    prediction_data_frame.to_csv(SUBMISSION_CSV_PATH)
 
 def main():
     argument_parser = ArgumentParser(
