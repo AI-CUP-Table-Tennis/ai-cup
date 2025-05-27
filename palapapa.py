@@ -15,6 +15,7 @@ from sklearn.model_selection import GroupKFold, GroupShuffleSplit
 from tqdm import tqdm
 from pickle import dump, load, HIGHEST_PROTOCOL
 from type_aliases import Double2D, Long1D
+import random
 
 TRAINING_DATA_BASE_PATH: Final = "./39_Training_Dataset"
 TESTING_DATA_BASE_PATH: Final = "./39_Test_Dataset"
@@ -22,11 +23,12 @@ TRAINING_DATA_INFO_CSV_PATH: Final = join(TRAINING_DATA_BASE_PATH, "train_info.c
 TESTING_DATA_INFO_CSV_PATH: Final = join(TESTING_DATA_BASE_PATH, "test_info.csv")
 TRAINING_DATA_PATH: Final = join(TRAINING_DATA_BASE_PATH, "train_data")
 TESTING_DATA_PATH: Final = join(TESTING_DATA_BASE_PATH, "test_data")
-FEATURES_BASE_PATH: Final = "./output/random_forest_features"
+OUTPUT_BASE_PATH: Final = "./output"
+FEATURES_BASE_PATH: Final = join(OUTPUT_BASE_PATH, "random_forest_features")
 TRAINING_FEATURES_PATH: Final = join(FEATURES_BASE_PATH, "train")
 TESTING_FEATURES_PATH: Final = join(FEATURES_BASE_PATH, "test")
-MODEL_PATH: Final = "./output/random_forest.pkl"
-SUBMISSION_CSV_PATH: Final = "./output/random_forest_submission.csv"
+MODEL_NAME: Final = "random_forest"
+SUBMISSION_CSV_NAME: Final = "random_forest_submission"
 
 @dataclass
 class FeatureCsvRow:
@@ -294,8 +296,8 @@ def check_feature_directory_existence(option_name: str):
         print(f"You need to generate the features of the training and testing data using the -g option before using the {option_name} option.")
         exit(1)
 
-def check_model_existence(option_name: str):
-    if not exists(MODEL_PATH):
+def check_model_existence(model_path: str, option_name: str):
+    if not exists(model_path):
         print(f"You need to train the model using the -t option before using the {option_name} option.")
         exit(1)
 
@@ -352,7 +354,7 @@ def calculate_overall_score(
         pass
     return sum(scores) / len(scores)
 
-def train_model():
+def train_model() -> str:
     check_feature_directory_existence("-t")
     training_info = read_csv(TRAINING_DATA_INFO_CSV_PATH, index_col="unique_id")
     training_feature_csv_paths = Path(TRAINING_FEATURES_PATH).glob("*.csv")
@@ -407,11 +409,13 @@ def train_model():
     testing_targets = all_targets.iloc[testing_indices]
     training_indices: Long1D
     validation_indices: Long1D
-    best_random_forest_classifier: RandomForestClassifier | None = None
+    best_random_forest_classifier_parameters = {}
     best_score = 0.0
     best_random_forest_classifier_fold_index = 0
     for fold_index, (training_indices, validation_indices) in enumerate(group_k_fold.split(training_and_validation_input_features, training_and_validation_targets, training_and_validation_groups)): # pyright: ignore[reportUnknownMemberType]
-        random_forest_classifier = RandomForestClassifier(max_features="sqrt")
+        random_state: int = random.randint(0, 1_000_000)
+        random_forest_classifier = RandomForestClassifier(max_features="sqrt", random_state=random_state)
+        print(f"random_state: {random_state}")
         training_input_features = training_and_validation_input_features.iloc[training_indices]
         training_targets = training_and_validation_targets.iloc[training_indices]
         validation_input_features = training_and_validation_input_features.iloc[validation_indices]
@@ -425,20 +429,28 @@ def train_model():
             print_scores(validation_predictions, testing_predictions, fold_index, validation_targets, testing_targets)
         except ValueError:
             pass
-        score = calculate_overall_score(testing_predictions, testing_targets)
+        score = calculate_overall_score(validation_predictions, validation_targets)
         print(f"Overall score: {score}")
         if score > best_score:
             best_score = score
-            best_random_forest_classifier = random_forest_classifier
+            best_random_forest_classifier_parameters = random_forest_classifier.get_params() # pyright: ignore[reportUnknownMemberType]
             best_random_forest_classifier_fold_index = fold_index
-    with open(MODEL_PATH, "wb") as model_file:
-        dump(best_random_forest_classifier, model_file, protocol=HIGHEST_PROTOCOL)
-        print(f"Saved the trained model (fold {best_random_forest_classifier_fold_index + 1}) to {MODEL_PATH}.")
+    final_random_forest_classifier = RandomForestClassifier(**best_random_forest_classifier_parameters)
+    final_random_forest_classifier.fit(training_and_validation_input_features, training_and_validation_targets) # pyright: ignore[reportUnknownMemberType]
+    testing_predictions = cast(list[Double2D], final_random_forest_classifier.predict_proba(testing_input_features))  # pyright: ignore[reportUnknownMemberType]
+    final_score = calculate_overall_score(testing_predictions, testing_targets)
+    print(f"Overall score: {final_score}")
+    model_path = join(OUTPUT_BASE_PATH, f"{MODEL_NAME}_{final_score}.pkl")
+    with open(model_path, "wb") as model_file:
+        dump(final_random_forest_classifier, model_file, protocol=HIGHEST_PROTOCOL)
+        print(f"Saved the trained model (fold {best_random_forest_classifier_fold_index + 1}) to {model_path}.")
+
+    return model_path
         
-def generate_submission_csv():
+def generate_submission_csv(model_path: str):
     check_feature_directory_existence("-p")
-    check_model_existence("-p")
-    with open(MODEL_PATH, "rb") as model_file:
+    check_model_existence(model_path, "-p")
+    with open(model_path, "rb") as model_file:
         random_forest_classifier: RandomForestClassifier = load(model_file)
     # Converts to a list so tqdm can know the total number of files.
     testing_feature_csv_paths = list(Path(TESTING_FEATURES_PATH).glob("*.csv"))
@@ -470,7 +482,8 @@ def generate_submission_csv():
     prediction_data_frame = DataFrame(prediction_csv_rows)
     prediction_data_frame.set_index("unique_id", inplace=True) # pyright: ignore[reportUnknownMemberType]
     prediction_data_frame.sort_index(inplace=True) # pyright: ignore[reportUnknownMemberType]
-    prediction_data_frame.to_csv(SUBMISSION_CSV_PATH)
+    summission_csv_path = join(OUTPUT_BASE_PATH, f"{SUBMISSION_CSV_NAME}.csv")
+    prediction_data_frame.to_csv(summission_csv_path)
 
 def main():
     argument_parser = ArgumentParser(
@@ -495,12 +508,14 @@ def main():
         default=False,
         action=BooleanOptionalAction)
     args = argument_parser.parse_args()
+
+    model_path: str = join(OUTPUT_BASE_PATH, f"{MODEL_NAME}_best.pkl")
     if args.generate_features:
         generate_features()
     if args.train_model:
-        train_model()
+        model_path = train_model()
     if args.generate_submission_csv:
-        generate_submission_csv()
+        generate_submission_csv(model_path = model_path)
 
 if __name__ == "__main__":
     main()
