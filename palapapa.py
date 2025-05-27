@@ -414,10 +414,10 @@ def train_model():
     best_random_forest_classifier_fold_index = 0
     for fold_index, (training_indices, validation_indices) in enumerate(group_k_fold.split(all_training_input_features, all_training_targets, training_groups)): # pyright: ignore[reportUnknownMemberType]
         random_forest_classifier = RandomForestClassifier(max_features="sqrt")
-        training_input_features = input_features.iloc[training_indices]
-        training_targets = targets.iloc[training_indices]
-        validation_input_features = input_features.iloc[validation_indices]
-        validation_targets = targets.iloc[validation_indices]
+        training_input_features = all_training_input_features.iloc[training_indices]
+        training_targets = all_training_targets.iloc[training_indices]
+        validation_input_features = all_training_input_features.iloc[validation_indices]
+        validation_targets = all_training_targets.iloc[validation_indices]
         random_forest_classifier.fit(training_input_features, training_targets) # pyright: ignore[reportUnknownMemberType]
         validation_predictions = cast(list[Double2D], random_forest_classifier.predict_proba(validation_input_features)) # pyright: ignore[reportUnknownMemberType]
         testing_predictions = cast(list[Double2D], random_forest_classifier.predict_proba(testing_input_features)) # pyright: ignore[reportUnknownMemberType]
@@ -435,7 +435,7 @@ def train_model():
             best_random_forest_classifier_fold_index = fold_index
     with open(MODEL_PATH, "wb") as model_file:
         dump(best_random_forest_classifier, model_file, protocol=HIGHEST_PROTOCOL)
-        print(f"Save the trained model (fold {best_random_forest_classifier_fold_index + 1}) to {MODEL_PATH}.")
+        print(f"Saved the trained model (fold {best_random_forest_classifier_fold_index + 1}) to {MODEL_PATH}.")
         
 def generate_submission_csv():
     check_feature_directory_existence("-p")
