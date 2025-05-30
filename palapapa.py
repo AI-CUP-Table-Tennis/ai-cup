@@ -1,15 +1,15 @@
-from math import isnan
+from __future__ import annotations
 from os import mkdir
 from sys import stderr
-from typing import Any, Final, cast
-from pandas import DataFrame, Series, read_csv, concat # pyright: ignore[reportUnknownVariableType]
+from typing import Any, Final, Literal, cast
+from pandas import DataFrame, Series, read_csv, concat, options # pyright: ignore[reportUnknownVariableType]
 from os.path import join, exists
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, BooleanOptionalAction
 from shutil import rmtree
 from pathlib import Path
 from dataclasses import dataclass
 from numpy.fft import rfft
-from numpy import float64, int64, object_
+from numpy import float64, int64, object_, isin, array, vstack
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import roc_auc_score # pyright: ignore[reportUnknownVariableType]
 from sklearn.model_selection import GroupKFold, GroupShuffleSplit
@@ -30,6 +30,9 @@ TRAINING_FEATURES_PATH: Final = join(FEATURES_BASE_PATH, "train")
 TESTING_FEATURES_PATH: Final = join(FEATURES_BASE_PATH, "test")
 MODEL_NAME: Final = "random_forest"
 SUBMISSION_CSV_NAME: Final = "random_forest_submission"
+
+# Opts in to Pandas 3.0's copy on write feature.
+options.mode.copy_on_write = True
 
 @dataclass
 class FeatureCsvRow:
@@ -302,12 +305,99 @@ def check_model_existence(model_path: str, option_name: str):
         print(f"You need to train the model using the -t option before using the {option_name} option.", file=stderr)
         exit(1)
 
-def print_scores(
-    predictions: list[Double2D],
-    targets: DataFrame):
+def fix_missing_labels(
+    predictions: Double2D,
+    targets: Series[int],
+    target_to_fix: Literal["gender", "hold racket handed", "play years", "level"]) -> tuple[Double2D, Series[int]]:
     """
-    Prints the ROC AUC scores of each of the 4 prediction targets in a training
-    run.
+    The dataset we are working with doesn't have evenly distributed labels. For
+    example, there are a lot more male players than female players, and there
+    are very few level 4 players. This causes issues when trying to calculate
+    the ROC AUC score of a training run, because with cross validation, some
+    folds won't have every possible label. For example, the testing fold for the
+    player level prediction task will sometimes only contain level 2, 3, and 5
+    players. In this case, `roc_auc_score` will throw because it will think that
+    there are only 3 kinds of labels, but we provided predictions that each
+    contain 4 probabilities (the probability that a player is of level 2, 3, 4,
+    or 5 respectively). This function tries to fix this by detecting which
+    labels are missing, and for each missing label, it inserts a piece of fake
+    data whose target is that missing label, and whose predicted probabilities
+    will be evenly distributed. Using the previous example again, this function
+    would insert a row into `predictions` that contains `[0.25, 0.25, 0.25,
+    0.25]` and an `4` into `targets`.
+
+    :param predictions: A `float64` `ndarray` with N rows and M columns, where N
+        is the number of predictions and M depends on `target_to_fix`:
+
+        - `target_to_fix == "gender"`: 2 columns. The first column contains the
+          probability that the player is male. The second column contains the
+          probability that the player is female.
+        - `target_to_fix == "hold racket handed"`: 2 columns. The first column
+          contains the probability that the player is right-handed. The second
+          column contains the probability that the player is left-handed.
+        - `target_to_fix == "play years"`: 3 columns. The first column contains
+          the probability that the player has low experience. The second column
+          contains the  probability that the player has medium experience. The
+          third column contains the probability that the player has high
+          experience.
+        - `target_to_fix == "level"`: 4 columns. The first column contains the
+          probability that the player is of level 2. The second column contains
+          the probability that the player is of level 3. The third column
+          contains the probability that the player is of level 4. The fourth
+          column contains the probability that the player is of level 5.
+    
+    :param targets: A `Series[int]` that is N elements long, where N is equal to
+        the N in `predictions`, that contains the target (correct anwser) of
+        each row in `predictions`. The allowed values depend on `target_to_fix`:
+
+        - `target_to_fix == "gender"`: 1 or 2.
+        - `target_to_fix == "hold racket handed"`: 1 or 2.
+        - `target_to_fix == "play years"`: 0, 1, or 2.
+        - `target_to_fix == "level"`: 2, 3, 4, or 5.
+
+        In all cases, if `targets` doesn't contain at least one of every allowed
+        value depending on `target_to_fix`, this function will "fix"
+        `predictions` and `targets` according to the description above. If it
+        does, then nothing is done.
+
+    :returns: A tuple whose first element is the fixed `predictions` and second
+        element is the fixed `targets`. These two will not be the same objects
+        as the two passed in if this function inserted fake data, i.e. a copy
+        will be made. If there was nothing to fix, these two will be the same
+        object as the two passed in, i.e. modifying one will modify another.
+    """
+    fixed_predictions = predictions
+    fixed_targets = targets
+    match target_to_fix:
+        case "gender" | "hold racket handed":
+            allowed_values = [1, 2]
+        case "play years":
+            allowed_values = [0, 1, 2]
+        case "level":
+            allowed_values = [2, 3, 4, 5]
+    # By doing this, if an element in this is False, that means the
+    # corresponding value in allowed_values is missing from targets.
+    allowed_values_index_to_whether_exists = isin(allowed_values, targets)
+    for allowed_values_index, exists in enumerate(allowed_values_index_to_whether_exists):
+        if exists:
+            continue
+        match target_to_fix:
+            case "gender" | "hold racket handed":
+                fixed_predictions = cast(Double2D, vstack([fixed_predictions, array([0.5, 0.5])]))
+            case "play years":
+                fixed_predictions = cast(Double2D, vstack([fixed_predictions, array([1 / 3, 1 / 3, 1 / 3])]))
+            case "level":
+                fixed_predictions = cast(Double2D, vstack([fixed_predictions, array([0.25, 0.25, 0.25, 0.25])]))
+        # Adds the missing label to fixed_targets.
+        fixed_targets = concat([fixed_targets, Series([allowed_values[allowed_values_index]])])
+    return fixed_predictions, fixed_targets
+
+def calculate_roc_auc_scores(
+    predictions: list[Double2D],
+    targets: DataFrame) -> tuple[float, float, float, float]:
+    """
+    Calculates the ROC AUC scores of each of the 4 prediction targets in a
+    training run.
 
     :param predictions: A `list` of 2D `float64` `ndarray`s where:
 
@@ -344,57 +434,44 @@ def print_scores(
            a 1 or 2. 1 indicates that the player is right-handed. 2 indicates
            that the player is left-handed.
         3. A column named "play years" contains the prediction targets for the
-           third `ndarray` in `predictions`. Each cell contains either a 1, 2,
-           or 3. 1 indicates that the player has low experience. 2 indicates
-           that the player has medium experience. 3 indicates that the player
+           third `ndarray` in `predictions`. Each cell contains either a 0, 1,
+           or 2. 0 indicates that the player has low experience. 1 indicates
+           that the player has medium experience. 2 indicates that the player
            has high experience.
         4. A column named "level" contains the prediction targets for the fourth
            `ndarray` in `predictions`. Each cell contains either a 2, 3, 4, or
            5. 2 indicates that the player is of level 2. 3 indicates that the
            player is of level 3. 4 indicates that the player is of level 4. 5
            indicates that the player is of level 5.
+        
+    :returns: A tuple that contains 4 `float`s, which are the gender ROC AUC
+        score, handedness ROC AUC score, experience ROC AUC score, and level ROC
+        AUC score, in that order.
     """
-    print(f"Gender ROC AUC score: {roc_auc_score(targets["gender"], predictions[0][:, 1])}")
-    print(f"Handedness ROC AUC score: {roc_auc_score(targets["hold racket handed"], predictions[1][:, 1])}")
-    print(f"Experience ROC AUC score: {roc_auc_score(targets["play years"], predictions[2], average="micro", multi_class="ovr")}")
-    print(f"Level validation ROC AUC score: {roc_auc_score(targets["level"], predictions[3], average="micro", multi_class="ovr")}")
+    fixed_gender_predictions, fixed_gender_targets = fix_missing_labels(predictions[0], cast("Series[int]", targets["gender"]), "gender")
+    fixed_handedness_predictions, fixed_handedness_targets = fix_missing_labels(predictions[1], cast("Series[int]", targets["hold racket handed"]), "hold racket handed")
+    fixed_experience_predictions, fixed_experience_targets = fix_missing_labels(predictions[2], cast("Series[int]", targets["play years"]), "play years")
+    fixed_level_predictions, fixed_level_targets = fix_missing_labels(predictions[3], cast("Series[int]", targets["level"]), "level")
+    return (float(roc_auc_score(fixed_gender_targets, fixed_gender_predictions[:, 1])),
+        float(roc_auc_score(fixed_handedness_targets, fixed_handedness_predictions[:, 1])),
+        float(roc_auc_score(fixed_experience_targets, fixed_experience_predictions, average="micro", multi_class="ovr")),
+        float(roc_auc_score(fixed_level_targets, fixed_level_predictions, average="micro", multi_class="ovr")))
 
-def calculate_overall_score(
-    testing_predictions: list[Double2D],
-    testing_targets: DataFrame) -> float:
-    scores: list[float] = []
-    # There is a chance that some of these will fail to compute and throw
-    # ValueError because sometimes the testing set just won't have every
-    # possible label in the dataset because some labels appear very rarely. This
-    # is only compounded by the fact that the testing set only takes up a small
-    # portion of the dataset. So if any of the following fail to compute, we
-    # will just ignore it and calculate the average score without them. The
-    # conversion to float is needed because the return type of roc_auc_score is
-    # actually float | float16 | float32 | float64. The first two scores don't
-    # need a try-except statement because for some reason in the binary case,
-    # roc_auc_score just prints a warning to the terminal and returns NaN. It
-    # only throws for the multi-class case.
-    gender_score = float(roc_auc_score(testing_targets["gender"], testing_predictions[0][:, 1]))
-    if not isnan(gender_score):
-        scores.append(gender_score)
-    handedness_score = float(roc_auc_score(testing_targets["hold racket handed"], testing_predictions[1][:, 1]))
-    if not isnan(handedness_score):
-        scores.append(handedness_score)
-    # No need to check for NaNs for the following two cases since they just
-    # throw without returning any value.
-    try:
-        scores.append(float(roc_auc_score(testing_targets["play years"], testing_predictions[2], average="micro", multi_class="ovr")))
-    except ValueError:
-        pass
-    try:
-        scores.append(float(roc_auc_score(testing_targets["level"], testing_predictions[3], average="micro", multi_class="ovr")))
-    except ValueError:
-        pass
-    return sum(scores) / len(scores)
+def print_scores(
+    predictions: list[Double2D],
+    targets: DataFrame):
+    """
+    Prints the 4 ROC AUC scores using `calculate_roc_auc_scores`.
+    """
+    gender_score, handedness_score, experience_score, level_score = calculate_roc_auc_scores(predictions, targets)
+    print(f"Gender ROC AUC score: {gender_score}")
+    print(f"Handedness ROC AUC score: {handedness_score}")
+    print(f"Experience ROC AUC score: {experience_score}")
+    print(f"Level ROC AUC score: {level_score}")
 
 def train_model() -> str:
     """
-    :returs: The path to the save location of the just trained model.
+    :returns: The path to the save location of the just trained model.
     """
     check_feature_directory_existence("-t")
     training_info = read_csv(TRAINING_DATA_INFO_CSV_PATH, index_col="unique_id")
@@ -471,16 +548,12 @@ def train_model() -> str:
         random_forest_classifier.fit(training_input_features, training_targets) # pyright: ignore[reportUnknownMemberType]
         validation_predictions = cast(list[Double2D], random_forest_classifier.predict_proba(validation_input_features)) # pyright: ignore[reportUnknownMemberType]
         testing_predictions = cast(list[Double2D], random_forest_classifier.predict_proba(testing_input_features)) # pyright: ignore[reportUnknownMemberType]
-        # See the comment inside calculate_overall_score to know why this try is
-        # needed.
-        try:
-            print("Validation ROC AUC scores:")
-            print_scores(validation_predictions, validation_targets)
-            print("Testing ROC AUC scores")
-            print_scores(testing_predictions, testing_targets)
-        except ValueError:
-            pass
-        score = calculate_overall_score(validation_predictions, validation_targets)
+        print("Validation ROC AUC scores:")
+        print_scores(validation_predictions, validation_targets)
+        print("Testing ROC AUC scores")
+        print_scores(testing_predictions, testing_targets)
+        scores = calculate_roc_auc_scores(validation_predictions, validation_targets)
+        score = sum(scores) / len(scores)
         print(f"Overall score: {score}")
         if score > best_score:
             best_score = score
@@ -490,12 +563,10 @@ def train_model() -> str:
     final_random_forest_classifier = RandomForestClassifier(**best_random_forest_classifier_parameters)
     final_random_forest_classifier.fit(training_and_validation_input_features, training_and_validation_targets) # pyright: ignore[reportUnknownMemberType]
     testing_predictions = cast(list[Double2D], final_random_forest_classifier.predict_proba(testing_input_features))  # pyright: ignore[reportUnknownMemberType]
-    try:
-        print("Final ROC AUC scores:")
-        print_scores(testing_predictions, testing_targets)
-    except ValueError:
-        pass
-    final_score = calculate_overall_score(testing_predictions, testing_targets)
+    print("Final ROC AUC scores:")
+    print_scores(testing_predictions, testing_targets)
+    final_scores = calculate_roc_auc_scores(testing_predictions, testing_targets)
+    final_score = sum(final_scores) / len(final_scores)
     print(f"Overall score: {final_score}")
     model_path = join(OUTPUT_BASE_PATH, f"{MODEL_NAME}_{final_score}.pkl")
     with open(model_path, "wb") as model_file:
