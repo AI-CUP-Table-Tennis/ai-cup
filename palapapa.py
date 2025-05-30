@@ -303,24 +303,61 @@ def check_model_existence(model_path: str, option_name: str):
         exit(1)
 
 def print_scores(
-    validation_predictions: list[Double2D],
-    testing_predictions: list[Double2D],
-    fold_index: int,
-    validation_targets: DataFrame,
-    testing_targets: DataFrame):
-    print(f"Fold: {fold_index + 1}")
+    predictions: list[Double2D],
+    targets: DataFrame):
+    """
+    Prints the ROC AUC scores of each of the 4 prediction targets in a training
+    run.
 
-    print(f"Gender validation ROC AUC score: {roc_auc_score(validation_targets["gender"], validation_predictions[0][:, 1])}")
-    print(f"Gender testing ROC AUC score: {roc_auc_score(testing_targets["gender"], testing_predictions[0][:, 1])}")
+    :param predictions: A `list` of 2D `float64` `ndarray`s where:
 
-    print(f"Handedness validation ROC AUC score: {roc_auc_score(validation_targets["hold racket handed"], validation_predictions[1][:, 1])}")
-    print(f"Handedness testing ROC AUC score: {roc_auc_score(testing_targets["hold racket handed"], testing_predictions[1][:, 1])}")
+        1. The first is a `ndarray` that has N rows and 2 columns where N is the
+           number of predictions. The first column contains the probability that
+           the player is male. The second column contains the probability that
+           the player is female.
+        2. The second is a `ndarray` that has N rows and 2 columns where N is
+           the number of predictions. The first column contains the probability
+           that the player is right-handed. The second column contains the
+           probability that the player is left-handed.
+        3. The third is a `ndarray` that has N rows and 3 columns where N is the
+           number of predictions. The first column contains the probability that
+           the player has low experience. The second column contains the
+           probability that the player has medium experience. The third column
+           contains the probability that the player has high experience.
+        4. The third is a `ndarray` that has N rows and 4 columns where N is the
+           number of predictions. The first column contains the probability that
+           the player is of level 2. The second column contains the probability
+           that the player is of level 3. The third column contains the
+           probability that the player is of level 4. The fourth column contains
+           the probability that the player is of level 5.
+    
+    :param targets: A `DataFrame` with N rows and 4 columns, where N is the
+        number of predictions, that contains the prediction targets (correct
+        answers) where:
 
-    print(f"Experience validation ROC AUC score: {roc_auc_score(validation_targets["play years"], validation_predictions[2], average="micro", multi_class="ovr")}")
-    print(f"Experience testing ROC AUC score: {roc_auc_score(testing_targets["play years"], testing_predictions[2], average="micro", multi_class="ovr")}")
-
-    print(f"Level validation ROC AUC score: {roc_auc_score(validation_targets["level"], validation_predictions[3], average="micro", multi_class="ovr")}")
-    print(f"Level testing ROC AUC score: {roc_auc_score(testing_targets["level"], testing_predictions[3], average="micro", multi_class="ovr")}")
+        1. A column named "gender" contains the prediction targets for the first
+           `ndarray` in `predictions`. Each cell contains either a 1 or 2. 1
+           indicates that the player is male. 2 indicates that the player is
+           female.
+        2. A column named "hold racket handed" contains the prediction targets
+           for the second `ndarray` in `predictions`. Each cell contains either
+           a 1 or 2. 1 indicates that the player is right-handed. 2 indicates
+           that the player is left-handed.
+        3. A column named "play years" contains the prediction targets for the
+           third `ndarray` in `predictions`. Each cell contains either a 1, 2,
+           or 3. 1 indicates that the player has low experience. 2 indicates
+           that the player has medium experience. 3 indicates that the player
+           has high experience.
+        4. A column named "level" contains the prediction targets for the fourth
+           `ndarray` in `predictions`. Each cell contains either a 2, 3, 4, or
+           5. 2 indicates that the player is of level 2. 3 indicates that the
+           player is of level 3. 4 indicates that the player is of level 4. 5
+           indicates that the player is of level 5.
+    """
+    print(f"Gender ROC AUC score: {roc_auc_score(targets["gender"], predictions[0][:, 1])}")
+    print(f"Handedness ROC AUC score: {roc_auc_score(targets["hold racket handed"], predictions[1][:, 1])}")
+    print(f"Experience ROC AUC score: {roc_auc_score(targets["play years"], predictions[2], average="micro", multi_class="ovr")}")
+    print(f"Level validation ROC AUC score: {roc_auc_score(targets["level"], predictions[3], average="micro", multi_class="ovr")}")
 
 def calculate_overall_score(
     testing_predictions: list[Double2D],
@@ -420,14 +457,13 @@ def train_model() -> str:
     # RandomForestClassifier with the same parameters.
     best_random_forest_classifier_parameters: dict[str, Any] = {}
     best_score = 0.0
-    best_random_forest_classifier_fold_index = 0
     for fold_index, (training_indices, validation_indices) in enumerate(group_k_fold.split(training_and_validation_input_features, training_and_validation_targets, training_and_validation_groups)): # pyright: ignore[reportUnknownMemberType]
         # The max random_state is 2^32 - 1 becuase sklearn internally uses
         # numpy.random.RandomState, which accepts a seed that ranges from 0 to
         # 2^32 - 1.
         random_state: int = randint(0, 2 ** 32 - 1)
         random_forest_classifier = RandomForestClassifier(max_features="sqrt", random_state=random_state)
-        print(f"random_state: {random_state}")
+        print(f"Fold {fold_index + 1} with random_state {random_state}:")
         training_input_features = training_and_validation_input_features.iloc[training_indices]
         training_targets = training_and_validation_targets.iloc[training_indices]
         validation_input_features = training_and_validation_input_features.iloc[validation_indices]
@@ -438,7 +474,10 @@ def train_model() -> str:
         # See the comment inside calculate_overall_score to know why this try is
         # needed.
         try:
-            print_scores(validation_predictions, testing_predictions, fold_index, validation_targets, testing_targets)
+            print("Validation ROC AUC scores:")
+            print_scores(validation_predictions, validation_targets)
+            print("Testing ROC AUC scores")
+            print_scores(testing_predictions, testing_targets)
         except ValueError:
             pass
         score = calculate_overall_score(validation_predictions, validation_targets)
@@ -446,17 +485,22 @@ def train_model() -> str:
         if score > best_score:
             best_score = score
             best_random_forest_classifier_parameters = cast(dict[str, Any], random_forest_classifier.get_params()) # pyright: ignore[reportUnknownMemberType]
-            best_random_forest_classifier_fold_index = fold_index
+        print() # Spaces out each fold
+    print("The k-fold cross validation has ended. Now retraining the model with all training and validation data:")
     final_random_forest_classifier = RandomForestClassifier(**best_random_forest_classifier_parameters)
     final_random_forest_classifier.fit(training_and_validation_input_features, training_and_validation_targets) # pyright: ignore[reportUnknownMemberType]
     testing_predictions = cast(list[Double2D], final_random_forest_classifier.predict_proba(testing_input_features))  # pyright: ignore[reportUnknownMemberType]
+    try:
+        print("Final ROC AUC scores:")
+        print_scores(testing_predictions, testing_targets)
+    except ValueError:
+        pass
     final_score = calculate_overall_score(testing_predictions, testing_targets)
     print(f"Overall score: {final_score}")
     model_path = join(OUTPUT_BASE_PATH, f"{MODEL_NAME}_{final_score}.pkl")
     with open(model_path, "wb") as model_file:
         dump(final_random_forest_classifier, model_file, protocol=HIGHEST_PROTOCOL)
-        print(f"Saved the trained model (fold {best_random_forest_classifier_fold_index + 1}) to {model_path}.")
-
+        print(f"Saved the final trained model to {model_path}.")
     return model_path
         
 def generate_submission_csv(model_path: str):
