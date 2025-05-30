@@ -1,5 +1,6 @@
 from math import isnan
 from os import mkdir
+from sys import stderr
 from typing import Any, Final, cast
 from pandas import DataFrame, Series, read_csv, concat # pyright: ignore[reportUnknownVariableType]
 from os.path import join, exists
@@ -293,12 +294,12 @@ def generate_features():
 
 def check_feature_directory_existence(option_name: str):
     if not exists(FEATURES_BASE_PATH):
-        print(f"You need to generate the features of the training and testing data using the -g option before using the {option_name} option.")
+        print(f"You need to generate the features of the training and testing data using the -g option before using the {option_name} option.", file=stderr)
         exit(1)
 
 def check_model_existence(model_path: str, option_name: str):
     if not exists(model_path):
-        print(f"You need to train the model using the -t option before using the {option_name} option.")
+        print(f"You need to train the model using the -t option before using the {option_name} option.", file=stderr)
         exit(1)
 
 def print_scores(
@@ -355,6 +356,9 @@ def calculate_overall_score(
     return sum(scores) / len(scores)
 
 def train_model() -> str:
+    """
+    :returs: The path to the save location of the just trained model.
+    """
     check_feature_directory_existence("-t")
     training_info = read_csv(TRAINING_DATA_INFO_CSV_PATH, index_col="unique_id")
     training_feature_csv_paths = Path(TRAINING_FEATURES_PATH).glob("*.csv")
@@ -512,18 +516,31 @@ def main():
     argument_parser.add_argument(
         "-p",
         "--generate-submission-csv",
-        help="Whether to use the model produced by supplying the -t flag to produce a CSV ready for submission to AI CUP.",
+        help="Whether to also use the model produced by supplying the -t flag to produce a CSV ready for submission to AI CUP. If you use this flag without the -t flag, you also need to specify the -m flag.",
         default=False,
         action=BooleanOptionalAction)
+    argument_parser.add_argument(
+        "-m",
+        "--csv-generation-model-path",
+        help="The path to the model to use when generating the submission CSV. Used when you use the -p flag without the -t flag. If the -p flag is used with the -t flag, this option does nothing.",
+    )
     args = argument_parser.parse_args()
 
-    model_path: str = join(OUTPUT_BASE_PATH, f"{MODEL_NAME}_best.pkl")
+    model_path: str | None = None
     if args.generate_features:
         generate_features()
     if args.train_model:
         model_path = train_model()
     if args.generate_submission_csv:
-        generate_submission_csv(model_path = model_path)
+        if model_path == None:
+            if args.csv_generation_model_path != None:
+                model_path = args.csv_generation_model_path
+            else:
+                print("You need to use the -m option to specify which model to generate the CSV with if you don't also use the -t flag.", file=stderr)
+                exit(1)
+        # Pyright is too dumb to see that model_path is either a str, or the
+        # program has exited.
+        generate_submission_csv(cast(str, model_path))
 
 if __name__ == "__main__":
     main()
