@@ -1,6 +1,6 @@
 from math import isnan
 from os import mkdir
-from typing import Final, cast
+from typing import Any, Final, cast
 from pandas import DataFrame, Series, read_csv, concat # pyright: ignore[reportUnknownVariableType]
 from os.path import join, exists
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, BooleanOptionalAction
@@ -15,7 +15,7 @@ from sklearn.model_selection import GroupKFold, GroupShuffleSplit
 from tqdm import tqdm
 from pickle import dump, load, HIGHEST_PROTOCOL
 from type_aliases import Double2D, Long1D
-import random
+from random import randint
 
 TRAINING_DATA_BASE_PATH: Final = "./39_Training_Dataset"
 TESTING_DATA_BASE_PATH: Final = "./39_Test_Dataset"
@@ -409,11 +409,19 @@ def train_model() -> str:
     testing_targets = all_targets.iloc[testing_indices]
     training_indices: Long1D
     validation_indices: Long1D
-    best_random_forest_classifier_parameters = {}
+    # RandomForestClassifier.get_params returns the parameters passed to
+    # RandomForestClassifier's constructor, but since the parameters all have
+    # different types, it's impossible to not make the value's type Any without
+    # generating more type errors when using this to recreate another
+    # RandomForestClassifier with the same parameters.
+    best_random_forest_classifier_parameters: dict[str, Any] = {}
     best_score = 0.0
     best_random_forest_classifier_fold_index = 0
     for fold_index, (training_indices, validation_indices) in enumerate(group_k_fold.split(training_and_validation_input_features, training_and_validation_targets, training_and_validation_groups)): # pyright: ignore[reportUnknownMemberType]
-        random_state: int = random.randint(0, 1_000_000)
+        # The max random_state is 2^32 - 1 becuase sklearn internally uses
+        # numpy.random.RandomState, which accepts a seed that ranges from 0 to
+        # 2^32 - 1.
+        random_state: int = randint(0, 2 ** 32 - 1)
         random_forest_classifier = RandomForestClassifier(max_features="sqrt", random_state=random_state)
         print(f"random_state: {random_state}")
         training_input_features = training_and_validation_input_features.iloc[training_indices]
@@ -433,7 +441,7 @@ def train_model() -> str:
         print(f"Overall score: {score}")
         if score > best_score:
             best_score = score
-            best_random_forest_classifier_parameters = random_forest_classifier.get_params() # pyright: ignore[reportUnknownMemberType]
+            best_random_forest_classifier_parameters = cast(dict[str, Any], random_forest_classifier.get_params()) # pyright: ignore[reportUnknownMemberType]
             best_random_forest_classifier_fold_index = fold_index
     final_random_forest_classifier = RandomForestClassifier(**best_random_forest_classifier_parameters)
     final_random_forest_classifier.fit(training_and_validation_input_features, training_and_validation_targets) # pyright: ignore[reportUnknownMemberType]
