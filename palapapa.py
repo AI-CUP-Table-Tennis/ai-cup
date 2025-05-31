@@ -9,7 +9,7 @@ from shutil import rmtree
 from pathlib import Path
 from dataclasses import dataclass
 from numpy.fft import rfft
-from numpy import float64, int64, object_, isin, array, vstack
+from numpy import float64, int64, object_, isin, array, vstack, array_equal
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import roc_auc_score # pyright: ignore[reportUnknownVariableType]
 from sklearn.model_selection import GroupKFold, GroupShuffleSplit
@@ -469,9 +469,72 @@ def print_scores(
     print(f"Experience ROC AUC score: {experience_score}")
     print(f"Level ROC AUC score: {level_score}")
 
-def train_model() -> str:
+def check_if_fold_is_usable(training_targets: DataFrame) -> bool:
     """
-    :returns: The path to the save location of the just trained model.
+    The same problem described in the documentation of `fix_missing_labels` can
+    also happen the the training set, which can cause the fitted
+    `RandomForestClassifier` to output the wrong number of class probabilities.
+    For example, if the training set happens to not contain any sample for a
+    level 4 player, then the fitted `RandomForestClassifier` would only output 3
+    probabilities for the player level prediction task and cause trouble.
+
+    In summary, there are 4 scenarios regarding missing labels:
+
+    1. No missing label in the training set and no missing label in the
+       validation set: Everything is fine.
+    2. No missing label in the training set and missing label in the validation
+       set: There will only be problems when calling `roc_auc_score`, which
+       should be handled by `fix_missing_labels`.
+    3. Missing label in the training set and no missing label in the validation
+       set: `fix_missing_labels` wouldn't do anything because it thinks that
+       there are no missing labels, but it doesn't check that the `predictions`
+       parameter actually contains the wrong number of columns because the
+       fitted `RandomForestClassifier` produces the wrong number of class
+       probabilities, so eventually `roc_auc_score` will error because the
+       number of classes and probabilities will be different.
+    4. Missing label in the training set and missing label in the validation
+       set: `fix_missing_labels` will see that there are missing labels in the
+       `targets` parameter and will try to insert a row of fake prediction into
+       `predictions`. However, since the fitted `RandomForestClassifier` will
+       produce the wrong number of class probabilities, when
+       `fix_missing_labels` appends the fake row, it will fail because the
+       column size of the row it tries to append will be larger than the column
+       size of the `predictions` parameters (because missing labels in the
+       training set means that the fitted `RandomForestClassifier` will produce
+       less class probabilities than expected). In this case, the program fails
+       inside `fix_missing_labels` instead of `roc_auc_score`.
+
+    There is also the case of missing labels in the testing set, but it is
+    similar to the case of missing labels in the validation set.
+
+    We can see that the only 2 cases where there will actually be problems is
+    when the training set has missing labels, so we would use this function to
+    check if that is the case, and skip a fold if it is.
+
+    This problem can also be fixed using `StratifiedGroupKFold` or by inserting
+    fake features into the training set, but the former will require us to train
+    a separate tree for each prediction task and the latter may undermine the
+    performance of the model.
+    """
+    unique_genders = cast(Long1D, training_targets["gender"].unique()) # pyright: ignore[reportUnknownMemberType]
+    unique_genders.sort()
+    unique_handednesses = cast(Long1D, training_targets["hold racket handed"].unique()) # pyright: ignore[reportUnknownMemberType]
+    unique_handednesses.sort()
+    unique_experiences = cast(Long1D, training_targets["play years"].unique()) # pyright: ignore[reportUnknownMemberType]
+    unique_experiences.sort()
+    unique_levels = cast(Long1D, training_targets["level"].unique()) # pyright: ignore[reportUnknownMemberType]
+    unique_levels.sort()
+    if (array_equal(unique_genders, array([1, 2])) and 
+        array_equal(unique_handednesses, array([1, 2])) and
+        array_equal(unique_experiences, array([0, 1, 2])) and
+        array_equal(unique_levels, array([2, 3, 4, 5]))) :
+        return True
+    return False
+
+def train_model() -> str | None:
+    """
+    :returns: The path to the save location of the just trained model. `None` if
+        the training failed.
     """
     check_feature_directory_existence("-t")
     training_info = read_csv(TRAINING_DATA_INFO_CSV_PATH, index_col="unique_id")
@@ -534,6 +597,10 @@ def train_model() -> str:
     # RandomForestClassifier with the same parameters.
     best_random_forest_classifier_parameters: dict[str, Any] = {}
     best_score = 0.0
+    best_fold_index = 0
+    # If we are so unlucky that none of the folds are usable, skip the final
+    # retraining as sell.
+    is_any_fold_usable = False
     for fold_index, (training_indices, validation_indices) in enumerate(group_k_fold.split(training_and_validation_input_features, training_and_validation_targets, training_and_validation_groups)): # pyright: ignore[reportUnknownMemberType]
         # The max random_state is 2^32 - 1 becuase sklearn internally uses
         # numpy.random.RandomState, which accepts a seed that ranges from 0 to
@@ -543,6 +610,11 @@ def train_model() -> str:
         print(f"Fold {fold_index + 1} with random_state {random_state}:")
         training_input_features = training_and_validation_input_features.iloc[training_indices]
         training_targets = training_and_validation_targets.iloc[training_indices]
+        if not check_if_fold_is_usable(training_targets):
+            print("The training set of this fold contains missing labels. Skipping.")
+            continue
+        else:
+            is_any_fold_usable = True
         validation_input_features = training_and_validation_input_features.iloc[validation_indices]
         validation_targets = training_and_validation_targets.iloc[validation_indices]
         random_forest_classifier.fit(training_input_features, training_targets) # pyright: ignore[reportUnknownMemberType]
@@ -557,9 +629,13 @@ def train_model() -> str:
         print(f"Overall score: {score}")
         if score > best_score:
             best_score = score
+            best_fold_index = fold_index
             best_random_forest_classifier_parameters = cast(dict[str, Any], random_forest_classifier.get_params()) # pyright: ignore[reportUnknownMemberType]
         print() # Spaces out each fold
-    print("The k-fold cross validation has ended. Now retraining the model with all training and validation data:")
+    if not is_any_fold_usable:
+        print("None of the folds were usable. Skipping the final training. No model will be output.")
+        return None
+    print(f"The k-fold cross validation has ended. Now retraining the model with all training and validation data using the parameters from fold {best_fold_index}:")
     final_random_forest_classifier = RandomForestClassifier(**best_random_forest_classifier_parameters)
     final_random_forest_classifier.fit(training_and_validation_input_features, training_and_validation_targets) # pyright: ignore[reportUnknownMemberType]
     testing_predictions = cast(list[Double2D], final_random_forest_classifier.predict_proba(testing_input_features))  # pyright: ignore[reportUnknownMemberType]
