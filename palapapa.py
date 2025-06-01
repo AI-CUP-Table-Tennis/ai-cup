@@ -9,13 +9,13 @@ from shutil import rmtree
 from pathlib import Path
 from dataclasses import dataclass
 from numpy.fft import rfft
-from numpy import float64, int64, object_, isin, array, vstack, array_equal
+from numpy import float64, int64, isin, array, vstack, array_equal
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import roc_auc_score # pyright: ignore[reportUnknownVariableType]
 from sklearn.model_selection import GroupKFold, GroupShuffleSplit
 from tqdm import tqdm
 from pickle import dump, load, HIGHEST_PROTOCOL
-from type_aliases import Double2D, Long1D
+from type_aliases import Double1D, Double2D, Long1D
 from random import randint
 
 TRAINING_DATA_BASE_PATH: Final = "./39_Training_Dataset"
@@ -606,7 +606,7 @@ def train_model() -> str | None:
         # numpy.random.RandomState, which accepts a seed that ranges from 0 to
         # 2^32 - 1.
         random_state: int = randint(0, 2 ** 32 - 1)
-        random_forest_classifier = RandomForestClassifier(max_features="sqrt", random_state=random_state)
+        random_forest_classifier = RandomForestClassifier(n_estimators=1000, n_jobs=-1, max_features="sqrt", random_state=random_state)
         print(f"Fold {fold_index + 1} with random_state {random_state}:")
         training_input_features = training_and_validation_input_features.iloc[training_indices]
         training_targets = training_and_validation_targets.iloc[training_indices]
@@ -657,32 +657,33 @@ def generate_submission_csv(model_path: str):
         random_forest_classifier: RandomForestClassifier = load(model_file)
     # Converts to a list so tqdm can know the total number of files.
     testing_feature_csv_paths = list(Path(TESTING_FEATURES_PATH).glob("*.csv"))
-    prediction_csv_rows: list[Series[int | float]] = []
-    for testing_feature_csv_path in tqdm(testing_feature_csv_paths, "Generating the submission CSV", unit="row"):
-        testing_features = read_csv(testing_feature_csv_path)
-        testing_predictions = cast(list[Double2D], random_forest_classifier.predict_proba(testing_features)) # pyright: ignore[reportUnknownMemberType]
-        prediction_dict: dict[str, int | float] = {
-            "unique_id": int(testing_feature_csv_path.stem),
-            # Since we are generating predictions one at a time,
-            # testing_predictions contains ndarrays that all have only one row.
-            # We use [0 ,0] here because we want the probability of the player
-            # being male, not female.
-            "gender": testing_predictions[0][0, 0],
-            # Same here, we use [0, 0] because we want the probability of the
-            # player being right-handed, not left-handed.
-            "hold racket handed": testing_predictions[1][0, 0],
-            "play years_0": testing_predictions[2][0, 0],
-            "play years_1": testing_predictions[2][0, 1],
-            "play years_2": testing_predictions[2][0, 2],
-            "level_2": testing_predictions[3][0, 0],
-            "level_3": testing_predictions[3][0, 1],
-            "level_4": testing_predictions[3][0, 2],
-            "level_5": testing_predictions[3][0, 3]
-        }
-        # Uses dtype=object_ so that the unique_id column won't have decimal
-        # points.
-        prediction_csv_rows.append(Series(prediction_dict, dtype=object_))
-    prediction_data_frame = DataFrame(prediction_csv_rows)
+    # Collects all testing feature CSVs into a single DataFrame.
+    testing_feature_data_frames: list[DataFrame] = []
+    # predict_proba shouldn't see the unique_id column when predicting, but the
+    # submission CSV needs it, so collect it separately.
+    unique_ids: list[int] = []
+    for testing_feature_csv_path in tqdm(testing_feature_csv_paths, "Reading the testing feature CSVs", unit="file"):
+        testing_feature_data_frames.append(read_csv(testing_feature_csv_path))
+        unique_ids.append(int(testing_feature_csv_path.stem))
+    testing_features = concat(testing_feature_data_frames, ignore_index=True)
+    testing_predictions = cast(list[Double2D], random_forest_classifier.predict_proba(testing_features)) # pyright: ignore[reportUnknownMemberType]
+    prediction_dict: dict[str, list[int] | Double1D] = {
+        "unique_id": unique_ids,
+        # We use [: ,0] here because we want the probability of the player being
+        # male, not female.
+        "gender": cast(Double1D, testing_predictions[0][:, 0]),
+        # Same here, we use [:, 0] because we want the probability of the player
+        # being right-handed, not left-handed.
+        "hold racket handed": cast(Double1D, testing_predictions[1][:, 0]),
+        "play years_0": cast(Double1D, testing_predictions[2][:, 0]),
+        "play years_1": cast(Double1D, testing_predictions[2][:, 1]),
+        "play years_2": cast(Double1D, testing_predictions[2][:, 2]),
+        "level_2": cast(Double1D, testing_predictions[3][:, 0]),
+        "level_3": cast(Double1D, testing_predictions[3][:, 1]),
+        "level_4": cast(Double1D, testing_predictions[3][:, 2]),
+        "level_5": cast(Double1D, testing_predictions[3][:, 3])
+    }
+    prediction_data_frame = DataFrame(prediction_dict)
     prediction_data_frame.set_index("unique_id", inplace=True) # pyright: ignore[reportUnknownMemberType]
     prediction_data_frame.sort_index(inplace=True) # pyright: ignore[reportUnknownMemberType]
     summission_csv_path = join(OUTPUT_BASE_PATH, f"{SUBMISSION_CSV_NAME}.csv")
