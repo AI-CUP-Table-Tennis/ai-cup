@@ -9,7 +9,7 @@ from shutil import rmtree
 from pathlib import Path
 from dataclasses import dataclass
 from numpy.fft import rfft
-from numpy import float64, int64, isin, array, vstack, array_equal
+from numpy import average, float64, int64, isin, array, vstack, array_equal
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import roc_auc_score # pyright: ignore[reportUnknownVariableType]
 from sklearn.model_selection import GroupKFold, GroupShuffleSplit
@@ -713,6 +713,7 @@ def train_model() -> str | None:
         print_scores(*testing_scores)
         score = sum(validation_scores) / len(validation_scores)
         print(f"Overall score: {score}")
+        print(f"Average tree depth: {average([estimator.get_depth() for estimator in random_forest_classifier.estimators_])}")
         if score > best_score:
             best_score = score
             best_fold_index = fold_index
@@ -773,7 +774,7 @@ def generate_submission_csv(model_path: str):
     prediction_data_frame.set_index("unique_id", inplace=True) # pyright: ignore[reportUnknownMemberType]
     prediction_data_frame.sort_index(inplace=True) # pyright: ignore[reportUnknownMemberType]
     summission_csv_path = join(OUTPUT_BASE_PATH, f"{SUBMISSION_CSV_NAME}.csv")
-    prediction_data_frame.to_csv(summission_csv_path)
+    prediction_data_frame.to_csv(summission_csv_path, float_format="%f")
 
 def main():
     argument_parser = ArgumentParser(
