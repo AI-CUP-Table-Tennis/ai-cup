@@ -542,12 +542,13 @@ def calculate_roc_auc_scores(
         float(roc_auc_score(fixed_level_targets, fixed_level_predictions, average="micro", multi_class="ovr")))
 
 def print_scores(
-    predictions: list[Double2D],
-    targets: DataFrame):
+    gender_score: float,
+    handedness_score: float,
+    experience_score: float,
+    level_score: float):
     """
-    Prints the 4 ROC AUC scores using `calculate_roc_auc_scores`.
+    Prints the 4 ROC AUC scores calculated from `calculate_roc_auc_scores`.
     """
-    gender_score, handedness_score, experience_score, level_score = calculate_roc_auc_scores(predictions, targets)
     print(f"Gender ROC AUC score: {gender_score}")
     print(f"Handedness ROC AUC score: {handedness_score}")
     print(f"Experience ROC AUC score: {experience_score}")
@@ -705,11 +706,12 @@ def train_model() -> str | None:
         validation_predictions = cast(list[Double2D], random_forest_classifier.predict_proba(validation_input_features)) # pyright: ignore[reportUnknownMemberType]
         testing_predictions = cast(list[Double2D], random_forest_classifier.predict_proba(testing_input_features)) # pyright: ignore[reportUnknownMemberType]
         print("Validation ROC AUC scores:")
-        print_scores(validation_predictions, validation_targets)
+        validation_scores = calculate_roc_auc_scores(validation_predictions, validation_targets)
+        print_scores(*validation_scores)
         print("Testing ROC AUC scores")
-        print_scores(testing_predictions, testing_targets)
-        scores = calculate_roc_auc_scores(validation_predictions, validation_targets)
-        score = sum(scores) / len(scores)
+        testing_scores = calculate_roc_auc_scores(testing_predictions, testing_targets)
+        print_scores(*testing_scores)
+        score = sum(validation_scores) / len(validation_scores)
         print(f"Overall score: {score}")
         if score > best_score:
             best_score = score
@@ -719,14 +721,14 @@ def train_model() -> str | None:
     if not is_any_fold_usable:
         print("None of the folds were usable. Skipping the final training. No model will be output.")
         return None
-    print(f"The k-fold cross validation has ended. Now retraining the model with all training and validation data using the parameters from fold {best_fold_index}:")
+    print(f"The k-fold cross validation has ended. Now retraining the model with all training and validation data using the parameters from fold {best_fold_index + 1}:")
     final_random_forest_classifier = RandomForestClassifier(**best_random_forest_classifier_parameters)
     final_random_forest_classifier.fit(training_and_validation_input_features, training_and_validation_targets) # pyright: ignore[reportUnknownMemberType]
     testing_predictions = cast(list[Double2D], final_random_forest_classifier.predict_proba(testing_input_features))  # pyright: ignore[reportUnknownMemberType]
     print("Final ROC AUC scores:")
-    print_scores(testing_predictions, testing_targets)
-    final_scores = calculate_roc_auc_scores(testing_predictions, testing_targets)
-    final_score = sum(final_scores) / len(final_scores)
+    testing_scores = calculate_roc_auc_scores(testing_predictions, testing_targets)
+    print_scores(*testing_scores)
+    final_score = sum(testing_scores) / len(testing_scores)
     print(f"Overall score: {final_score}")
     model_path = join(OUTPUT_BASE_PATH, f"{MODEL_NAME}_{final_score}.pkl")
     with open(model_path, "wb") as model_file:
