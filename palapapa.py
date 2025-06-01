@@ -79,6 +79,12 @@ class FeatureCsvRow:
     angular_acceleration_x_min: float
     angular_acceleration_y_min: float
     angular_acceleration_z_min: float
+    acceleration_x_median: float
+    acceleration_y_median: float
+    acceleration_z_median: float
+    angular_acceleration_x_median: float
+    angular_acceleration_y_median: float
+    angular_acceleration_z_median: float
     acceleration_x_kurtosis: float
     acceleration_y_kurtosis: float
     acceleration_z_kurtosis: float
@@ -91,8 +97,22 @@ class FeatureCsvRow:
     angular_acceleration_x_skewness: float
     angular_acceleration_y_skewness: float
     angular_acceleration_z_skewness: float
+    acceleration_mean: float
+    angular_acceleration_mean: float
+    acceleration_standard_deviation: float
+    angular_acceleration_standard_deviation: float
+    acceleration_root_mean_square: float
+    angular_acceleration_root_mean_square: float
     acceleration_max: float
     angular_acceleration_max: float
+    acceleration_min: float
+    angular_acceleration_min: float
+    acceleration_median: float
+    angular_acceleration_median: float
+    acceleration_kurtosis: float
+    angular_acceleration_kurtosis: float
+    acceleration_skewness: float
+    angular_acceleration_skewness: float
     fft_acceleration_x_mean: float
     fft_acceleration_y_mean: float
     fft_acceleration_z_mean: float
@@ -123,6 +143,12 @@ class FeatureCsvRow:
     fft_angular_acceleration_x_min: float
     fft_angular_acceleration_y_min: float
     fft_angular_acceleration_z_min: float
+    fft_acceleration_x_median: float
+    fft_acceleration_y_median: float
+    fft_acceleration_z_median: float
+    fft_angular_acceleration_x_median: float
+    fft_angular_acceleration_y_median: float
+    fft_angular_acceleration_z_median: float
     fft_acceleration_x_kurtosis: float
     fft_acceleration_y_kurtosis: float
     fft_acceleration_z_kurtosis: float
@@ -135,8 +161,22 @@ class FeatureCsvRow:
     fft_angular_acceleration_x_skewness: float
     fft_angular_acceleration_y_skewness: float
     fft_angular_acceleration_z_skewness: float
+    fft_acceleration_mean: float
+    fft_angular_acceleration_mean: float
+    fft_acceleration_standard_deviation: float
+    fft_angular_acceleration_standard_deviation: float
+    fft_acceleration_root_mean_square: float
+    fft_angular_acceleration_root_mean_square: float
     fft_acceleration_max: float
     fft_angular_acceleration_max: float
+    fft_acceleration_min: float
+    fft_angular_acceleration_min: float
+    fft_acceleration_median: float
+    fft_angular_acceleration_median: float
+    fft_acceleration_kurtosis: float
+    fft_angular_acceleration_kurtosis: float
+    fft_acceleration_skewness: float
+    fft_angular_acceleration_skewness: float
 
 def generate_features_for_single_data(data: DataFrame, mode: int) -> list[FeatureCsvRow]:
     """
@@ -156,6 +196,10 @@ def generate_features_for_single_data(data: DataFrame, mode: int) -> list[Featur
         obtained from `train_info.csv` or `test_info.csv`.
     """
     fft_data = data.apply(rfft).abs()
+    acceleration = cast("Series[float]", data[["acceleration_x", "acceleration_y", "acceleration_z"]].pow(2).sum(axis=1).pow(0.5)) # pyright: ignore[reportUnknownMemberType]
+    angular_acceleration = cast("Series[float]", data[["angular_acceleration_x", "angular_acceleration_y", "angular_acceleration_z"]].pow(2).sum(axis=1).pow(0.5)) # pyright: ignore[reportUnknownMemberType]
+    fft_acceleration = cast("Series[float]", fft_data[["acceleration_x", "acceleration_y", "acceleration_z"]].pow(2).sum(axis=1).pow(0.5)) # pyright: ignore[reportUnknownMemberType]
+    fft_angular_acceleration = cast("Series[float]", fft_data[["angular_acceleration_x", "angular_acceleration_y", "angular_acceleration_z"]].pow(2).sum(axis=1).pow(0.5)) # pyright: ignore[reportUnknownMemberType]
     feature = FeatureCsvRow(
         mode=mode,
         # `mean` doesn't actually return float as the type hint suggests, but
@@ -193,6 +237,12 @@ def generate_features_for_single_data(data: DataFrame, mode: int) -> list[Featur
         angular_acceleration_x_min=data["angular_acceleration_x"].min(), # pyright: ignore[reportUnknownArgumentType]
         angular_acceleration_y_min=data["angular_acceleration_y"].min(), # pyright: ignore[reportUnknownArgumentType]
         angular_acceleration_z_min=data["angular_acceleration_z"].min(), # pyright: ignore[reportUnknownArgumentType]
+        acceleration_x_median=data["acceleration_x"].median(),
+        acceleration_y_median=data["acceleration_y"].median(),
+        acceleration_z_median=data["acceleration_z"].median(),
+        angular_acceleration_x_median=data["angular_acceleration_x"].median(),
+        angular_acceleration_y_median=data["angular_acceleration_y"].median(),
+        angular_acceleration_z_median=data["angular_acceleration_z"].median(),
         acceleration_x_kurtosis=cast(float64, data["acceleration_x"].kurt()),
         acceleration_y_kurtosis=cast(float64, data["acceleration_y"].kurt()),
         acceleration_z_kurtosis=cast(float64, data["acceleration_z"].kurt()),
@@ -205,8 +255,22 @@ def generate_features_for_single_data(data: DataFrame, mode: int) -> list[Featur
         angular_acceleration_x_skewness=cast(float64, data["angular_acceleration_x"].skew()),
         angular_acceleration_y_skewness=cast(float64, data["angular_acceleration_y"].skew()),
         angular_acceleration_z_skewness=cast(float64, data["angular_acceleration_z"].skew()),
-        acceleration_max=data[["acceleration_x", "acceleration_y", "acceleration_z"]].pow(2).sum(axis=1).pow(0.5).max(), # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
-        angular_acceleration_max=data[["angular_acceleration_x", "angular_acceleration_y", "angular_acceleration_z"]].pow(2).sum(axis=1).pow(0.5).max(), # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
+        acceleration_mean=acceleration.mean(),
+        angular_acceleration_mean=angular_acceleration.mean(),
+        acceleration_standard_deviation=acceleration.std(),
+        angular_acceleration_standard_deviation=angular_acceleration.std(),
+        acceleration_root_mean_square=acceleration.pow(2).mean() ** 0.5, # pyright: ignore[reportUnknownMemberType]
+        angular_acceleration_root_mean_square=angular_acceleration.pow(2).mean() ** 0.5, # pyright: ignore[reportUnknownMemberType]
+        acceleration_max=acceleration.max(),
+        angular_acceleration_max=angular_acceleration.max(),
+        acceleration_min=acceleration.min(),
+        angular_acceleration_min=angular_acceleration.min(),
+        acceleration_median=acceleration.median(),
+        angular_acceleration_median=angular_acceleration.median(),
+        acceleration_kurtosis=cast(float64, acceleration.kurt()),
+        angular_acceleration_kurtosis=cast(float64, angular_acceleration.kurt()),
+        acceleration_skewness=cast(float64, acceleration.skew()),
+        angular_acceleration_skewness=cast(float64, angular_acceleration.skew()),
         fft_acceleration_x_mean=fft_data["acceleration_x"].mean(),
         fft_acceleration_y_mean=fft_data["acceleration_y"].mean(),
         fft_acceleration_z_mean=fft_data["acceleration_z"].mean(),
@@ -237,6 +301,12 @@ def generate_features_for_single_data(data: DataFrame, mode: int) -> list[Featur
         fft_angular_acceleration_x_min=fft_data["angular_acceleration_x"].min(), # pyright: ignore[reportUnknownArgumentType]
         fft_angular_acceleration_y_min=fft_data["angular_acceleration_y"].min(), # pyright: ignore[reportUnknownArgumentType]
         fft_angular_acceleration_z_min=fft_data["angular_acceleration_z"].min(), # pyright: ignore[reportUnknownArgumentType]
+        fft_acceleration_x_median=fft_data["acceleration_x"].median(),
+        fft_acceleration_y_median=fft_data["acceleration_y"].median(),
+        fft_acceleration_z_median=fft_data["acceleration_z"].median(),
+        fft_angular_acceleration_x_median=fft_data["angular_acceleration_x"].median(),
+        fft_angular_acceleration_y_median=fft_data["angular_acceleration_y"].median(),
+        fft_angular_acceleration_z_median=fft_data["angular_acceleration_z"].median(),
         fft_acceleration_x_kurtosis=cast(float64, fft_data["acceleration_x"].kurt()),
         fft_acceleration_y_kurtosis=cast(float64, fft_data["acceleration_y"].kurt()),
         fft_acceleration_z_kurtosis=cast(float64, fft_data["acceleration_z"].kurt()),
@@ -249,8 +319,22 @@ def generate_features_for_single_data(data: DataFrame, mode: int) -> list[Featur
         fft_angular_acceleration_x_skewness=cast(float64, fft_data["angular_acceleration_x"].skew()),
         fft_angular_acceleration_y_skewness=cast(float64, fft_data["angular_acceleration_y"].skew()),
         fft_angular_acceleration_z_skewness=cast(float64, fft_data["angular_acceleration_z"].skew()),
-        fft_acceleration_max=fft_data[["acceleration_x", "acceleration_y", "acceleration_z"]].pow(2).sum(axis=1).pow(0.5).max(), # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
-        fft_angular_acceleration_max=fft_data[["angular_acceleration_x", "angular_acceleration_y", "angular_acceleration_z"]].pow(2).sum(axis=1).pow(0.5).max(), # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
+        fft_acceleration_mean=fft_acceleration.mean(),
+        fft_angular_acceleration_mean=fft_angular_acceleration.mean(),
+        fft_acceleration_standard_deviation=fft_acceleration.std(),
+        fft_angular_acceleration_standard_deviation=fft_angular_acceleration.std(),
+        fft_acceleration_root_mean_square=fft_acceleration.pow(2).mean() ** 0.5, # pyright: ignore[reportUnknownMemberType]
+        fft_angular_acceleration_root_mean_square=fft_angular_acceleration.pow(2).mean() ** 0.5, # pyright: ignore[reportUnknownMemberType]
+        fft_acceleration_max=fft_acceleration.max(),
+        fft_angular_acceleration_max=fft_angular_acceleration.max(),
+        fft_acceleration_min=fft_acceleration.min(),
+        fft_angular_acceleration_min=fft_angular_acceleration.min(),
+        fft_acceleration_median=fft_acceleration.median(),
+        fft_angular_acceleration_median=fft_angular_acceleration.median(),
+        fft_acceleration_kurtosis=cast(float64, fft_acceleration.kurt()),
+        fft_angular_acceleration_kurtosis=cast(float64, fft_angular_acceleration.kurt()),
+        fft_acceleration_skewness=cast(float64, fft_acceleration.skew()),
+        fft_angular_acceleration_skewness=cast(float64, fft_angular_acceleration.skew()),
     )
     return [feature]
 
