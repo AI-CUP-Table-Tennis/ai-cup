@@ -691,7 +691,7 @@ def train_model() -> str | None:
         # numpy.random.RandomState, which accepts a seed that ranges from 0 to
         # 2^32 - 1.
         random_state: int = randint(0, 2 ** 32 - 1)
-        random_forest_classifier = RandomForestClassifier(n_estimators=1000, n_jobs=-1, max_features="sqrt", random_state=random_state)
+        random_forest_classifier = RandomForestClassifier(n_estimators=1000, n_jobs=-1, max_features="sqrt", class_weight="balanced", random_state=random_state)
         print(f"Fold {fold_index + 1} with random_state {random_state}:")
         training_input_features = training_and_validation_input_features.iloc[training_indices]
         training_targets = training_and_validation_targets.iloc[training_indices]
