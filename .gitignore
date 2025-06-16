@@ -16,3 +16,13 @@ output/
 /39_Training_Dataset
 /39_Test_Dataset
 /39_Readme_V2
+
+# LaTeX
+/*.log
+/*.aux
+/*.fdb_latexmk
+/*.fls
+/*.out
+/*.pdf
+/*.synctex.gz
+/*.xdv

@@ -33,7 +33,7 @@ uv run palapapa.py -gpt
 ```
 
 ```plaintext
-usage: palapapa.py [-h] [-g | --generate-features | --no-generate-features] [-t | --train-model | --no-train-model] [-p | --generate-submission-csv | --no-generate-submission-csv]
+usage: palapapa.py [-h] [-g | --generate-features | --no-generate-features] [-t | --train-model | --no-train-model] [-p | --generate-submission-csv | --no-generate-submission-csv] [-m CSV_GENERATION_MODEL_PATH]
 
 You need to specify at least one option; otherwise the script does nothing.
 
@@ -44,5 +44,7 @@ options:
   -t, --train-model, --no-train-model
                         Whether to train the model and saves it to the disk. (default: False)
   -p, --generate-submission-csv, --no-generate-submission-csv
-                        Whether to use the model produced by supplying the -t flag to produce a CSV ready for submission to AI CUP. (default: False)
+                        Whether to also use the model produced by supplying the -t flag to produce a CSV ready for submission to AI CUP. If you use this flag without the -t flag, you also need to specify the -m flag. (default: False)
+  -m, --csv-generation-model-path CSV_GENERATION_MODEL_PATH
+                        The path to the model to use when generating the submission CSV. Used when you use the -p flag without the -t flag. If the -p flag is used with the -t flag, this option does nothing. (default: None)
 ```

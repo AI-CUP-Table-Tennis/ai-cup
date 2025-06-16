@@ -195,7 +195,7 @@ def generate_features_for_single_data(data: DataFrame, mode: int) -> list[Featur
     :param mode: The mode number for this piece of training or testing data as
         obtained from `train_info.csv` or `test_info.csv`.
     """
-    fft_data = data.apply(rfft).abs()
+    fft_data = data.apply(rfft).abs() # pyright: ignore[reportUnknownMemberType]
     acceleration = cast("Series[float]", data[["acceleration_x", "acceleration_y", "acceleration_z"]].pow(2).sum(axis=1).pow(0.5)) # pyright: ignore[reportUnknownMemberType]
     angular_acceleration = cast("Series[float]", data[["angular_acceleration_x", "angular_acceleration_y", "angular_acceleration_z"]].pow(2).sum(axis=1).pow(0.5)) # pyright: ignore[reportUnknownMemberType]
     fft_acceleration = cast("Series[float]", fft_data[["acceleration_x", "acceleration_y", "acceleration_z"]].pow(2).sum(axis=1).pow(0.5)) # pyright: ignore[reportUnknownMemberType]

@@ -1,0 +1,477 @@
+\documentclass[12pt, a4paper]{article}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage[vmargin = 2.54cm, left = 3.17cm, right = 3cm, headsep = 10pt, headheight = 15pt]{geometry}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage[svgnames]{xcolor}
+\usepackage{tcolorbox}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{ragged2e}
+\usepackage{subcaption}
+\usepackage{etoolbox}
+\usepackage{calc}
+\usepackage{float}
+\usepackage{tikz}
+\usepackage{hhline}
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{fontspec}
+\usepackage{iftex}
+\usepackage{lstautogobble}
+\usepackage{tabularray}
+\usepackage{titling}
+\usepackage{soul}
+\usepackage{hyphenat}
+\ifXeTeX
+    \usepackage{xeCJK}
+\fi
+\ifLuaTeX
+    \usepackage{luatexja}
+    \usepackage[scale = 1]{luatexja-fontspec}
+\fi
+
+% cSpell: disable
+% chktex-file 21
+% chktex-file 44
+\makeatletter
+\usetikzlibrary{graphs, positioning}
+\UseTblrLibrary{diagbox}
+\ifLuaTeX
+    \usetikzlibrary{graphdrawing}
+    \usegdlibrary{trees}
+\fi
+\setmainfont{Times New Roman}
+\setmonofont{FiraMono-Regular.otf}[HyphenChar=\ ] % https://tex.stackexchange.com/questions/547919/fira-mono-is-oblique-not-upright-by-default
+\setmathrm{NewComputerModernMath}
+\ifXeTeX
+    \setCJKmainfont{DFKai-SB}
+    \setCJKmonofont{DFKai-SB}
+\fi
+\ifLuaTeX
+    \setmainjfont{DFKai-SB}
+    \setmonojfont{DFKai-SB}
+    % luatexja makes the header shift downward a little bit for some reason
+    \setlength{\headheight}{12.40004pt}
+\fi
+\pagestyle{fancy}
+\title{\fontsize{20}{24}\selectfont AI CUP 2025 春季賽\\桌球智慧球拍資料的精準分析競賽報告\vspace{-3cm}}
+\setlength{\droptitle}{-2cm}
+\author{}
+\date{}
+\chead{AI CUP 2025 春季賽}
+\lhead{}
+\rhead{}
+\titleformat{\section}
+    {\fontsize{20}{24}\selectfont}
+    {\Chinese{section}、}
+    {0pt}
+    {}
+\titleformat{\subsection}
+    {}
+    {\arabic{subsection}.}
+    {10pt}
+    {}
+\titleformat{\subsubsection}
+    {}
+    {\alph{subsubsection}.}
+    {10pt}
+    {}
+\setlist{left = \parindent, itemsep = \parsep, parsep = \parskip}
+\lstset
+{
+    basicstyle = \small\ttfamily,    
+    breaklines = true,
+    keywordstyle = \color{LimeGreen!80!black},
+    commentstyle = \color{gray!80!white},
+    breaklines = true,
+    frame = single,
+    autogobble = true,
+    showstringspaces = false
+    language = Python
+}
+% \DeclareTotalTCBox
+%     {\code}
+%     {v}
+%     {
+%         % verbatim is fontupper=\ttfamily,nobeforeafter,tcbox raise base,top=0pt,bottom=0pt,left=1mm,right=1mm,boxrule=0.3mm
+%         verbatim,
+%         colback = gray!30,
+%         frame empty,
+%         left = 0pt,
+%         right = 0pt,
+%         boxrule = 0pt,
+%         boxsep = 1pt
+%     }
+%     % Temporary fix for a bug in luatexja where lstinline produces an extra
+%     % leading space.
+%     % https://tex.stackexchange.com/questions/220987/unwanted-double-width-space-before-inline-listings-when-using-luatexja-fontspec#comment1845401_221015
+%     {
+%         \ifXeTeX
+%             \lstinline[basicstyle = \ttfamily, language =]|#1|
+%         \else
+%             #1\fi
+%     }
+% \DeclareTotalTCBox
+%     {\codenoverb}
+%     {m}
+%     {
+%         % verbatim is fontupper=\ttfamily,nobeforeafter,tcbox raise base,top=0pt,bottom=0pt,left=1mm,right=1mm,boxrule=0.3mm
+%         verbatim,
+%         colback = gray!30,
+%         frame empty,
+%         left = 0pt,
+%         right = 0pt,
+%         boxrule = 0pt,
+%         boxsep = 1pt
+%     }
+%     {#1}
+%
+% The following version of \code and \codenoverb supports line breaks, unlike
+% the above version. Note that hyphenat will only break a word with underscores
+% after an underscore if you use the \_ command. That is, if you use _ in a
+% verbatim environment, it won't break the word after underscores. If you need
+% to use \code with a long word that contains underscores, consider using
+% \codenoverb and \_ to allow line breaking. Without the htt option, hyphenat,
+% inside \texttt, will only break after underscores, but not after letters. This
+% is solved with a special property of \hl I discovered.
+%
+% \hl magically allows breaking a long word as if the overflowed part just
+% automatically wraps to the next line. However, since I also set HyphenChar
+% when using \setmonofont, \texttt hyphenates anyway without the htt option, so
+% this special property of \hl is not needed.
+\NewDocumentCommand{\code}{v}{%
+    \sethlcolor{code-background}%
+    \hl{\texttt{#1}}%
+}
+\NewDocumentCommand{\codenoverb}{m}{%
+    \sethlcolor{code-background}%
+    \hl{\texttt{#1}}%
+}
+\definecolor{link}{HTML}{0084ff}
+\colorlet{code-background}{gray!30}
+\hypersetup
+{
+    colorlinks = true,
+    allcolors = link
+}
+% #1: Variable name, #2: Variable value
+\NewDocumentCommand{\var}{mm}{\csdef{var:#1}{#2}}
+% #1: Variable name
+\NewExpandableDocumentCommand{\val}{m}{\csuse{var:#1}}
+\graphicspath{{images/}}
+\DeclareGraphicsExtensions{.png, .jpg} % chktex 26
+\newlength{\imagewidth}
+% #1: Max width, #2: Image filename
+\NewDocumentCommand{\includescaleddowngraphics}{O{\textwidth}m}{%
+    \settowidth{\imagewidth}{\includegraphics{#2}}
+    \setlength{\imagewidth}{\minof{\imagewidth}{#1}}
+    \includegraphics[width = \imagewidth]{#2}
+}
+% #1, Optional figure placement. Defaults to htp, #2: Image filename, #3: Figure
+% caption, #4: Optional figure label. Defaults to #2
+\NewDocumentCommand{\fig}{O{htp}mmo}{%
+    \var{label}{\IfValueTF{#4}{#4}{#2}}
+    \begin{figure}[#1]
+        \centering
+        \includescaleddowngraphics{#2}
+        \caption{#3\label{\val{label}}}
+    \end{figure}
+}
+% #1: Optional figure placement. Defaults to htp, #2: Left image filename, #3:
+% Left subcaption, #4: Right image filename, #5: Right subcaption, #6: Figure
+% caption, #7: Figure label, #8, Optional left figure label. Defaults to #2, #9:
+% Optional right figure label. Defaults to #4
+\NewDocumentCommand{\twofig}{O{htp}mmmmmmoo}{%
+    \var{left-label}{\IfValueTF{#8}{#8}{#2}}
+    \var{right-label}{\IfValueTF{#9}{#9}{#4}}
+    \begin{figure}[#1]
+        \centering
+        \begin{subcaptionblock}{0.49\textwidth}
+            \centering
+            \includescaleddowngraphics{#2}
+            \caption{#3\label{\val{left-label}}}
+        \end{subcaptionblock}
+        \begin{subcaptionblock}{0.49\textwidth}
+            \centering
+            \includescaleddowngraphics{#4}
+            \caption{#5\label{\val{right-label}}}
+        \end{subcaptionblock}
+        \caption{#6\label{#7}}
+    \end{figure}
+}
+% Indented raggedright
+\NewDocumentCommand{\iraggedright}{}{%
+    \let\\\@centercr\@rightskip\@flushglue \rightskip\@rightskip % chktex 21
+    \leftskip\z@skip
+}
+\NewDocumentCommand{\link}{m}{\href{#1}{\url{#1}}}
+\NewDocumentCommand{\email}{m}{\href{mailto:#1}{\url{#1}}}
+% Makes \@ usable in section titles without triggering a hyperref warning
+\pdfstringdefDisableCommands{\let \@ \empty}
+\pdfstringdefDisableCommands{\let \codenoverb \empty}
+% Makes the \\ command in tabular add a \hline automatically
+% \let \oldtabularcr \@tabularcr
+% \def \@tabularcr{\oldtabularcr \hline}
+\DeclareMathOperator{\eclosure}{\epsilon-closure}
+\DeclareMathOperator{\move}{move}
+\NewExpandableDocumentCommand{\thead}{mm}{%
+    \multicolumn{1}{#1}{#2}    
+}
+\ExplSyntaxOn
+\NewDocumentCommand{\Chinese}{m}{
+    \int_case:nnF{\value{#1}}
+    {
+        {0}{零}
+        {1}{壹}
+        {2}{貳}
+        {3}{參}
+        {4}{肆}
+        {5}{伍}
+        {6}{陸}
+        {7}{柒}
+        {8}{捌}
+        {9}{玖}
+        {10}{拾}
+    }
+    {\arabic{#1}}
+}
+\ExplSyntaxOff
+\RenewDocumentCommand{\figurename}{}{圖}
+\RenewDocumentCommand{\figureautorefname}{}{圖}
+\makeatother
+% cSpell: enable
+
+\begin{document}
+    \maketitle
+    \noindent 隊伍：TEAM\_7631
+
+    \noindent 隊員：廖翊廷（隊長）、鄭琇文、謝維佳、吳秉倫、王俐晴
+
+    \noindent Private leaderboard：0.798613 / Rank 28
+    \section{環境}
+        本專案可在 Windows、Linux、或 macOS 上執行，使用的語言為 Python，版本為
+        大於等於 3.13，使用的套件為：
+        \begin{enumerate}
+            \item \code{matplotlib >= 3.10.3}
+            \item \code{numpy >= 2.2.5}
+            \item \code{pandas >= 2.2.3}
+            \item \code{scikit-learn >= 1.6.1}
+            \item \code{scipy >= 1.15.3}
+            \item \code{scipy-stubs >= 1.15.3.0}
+            \item \code{tqdm >= 4.67.1}
+        \end{enumerate}
+        我們沒有使用任何預訓練模型，也沒有使用額外的資料集。我們使用的套件管理器
+        為 uv，並使用 Pyright 作為 type checker。
+
+        整個專案中最重要的檔案是 \code{palapapa.py}，它負責了特徵的產生、模型的
+        訓練、以及最終輸出預測結果。我們的專案架構非常簡單，基本上只要安裝uv，裝
+        完 dependency，唯一剩下需要跑的就只有 \code{palapapa.py}，它所輸出的所有
+        檔案都會放在 \code{output/} 資料夾下，包括訓練和預測會使用到的特徵CSV、
+        訓練完的模型 Pickle 檔、以及最後用來提交到 AI CUP 的預測 CSV。詳細使用方
+        式已附在 \code{README.md} 中，也可以執行:
+        % cspell: disable
+        \begin{lstlisting}[language = Bash]
+            uv run palapapa.py -h
+        \end{lstlisting}
+        % cspell: enable
+        來獲取說明。
+
+        我們的程式碼有非常詳盡的註解還有 type hint，在 Pyright 最嚴格的設定下也
+        可以無錯誤和警告，如果以下說明有不夠詳盡之處，也可以參考程式碼中的註解。
+    \section{演算方法與模型架構}
+        我們使用的模型是由 scikit-learn 所提供的 \code{RandomForestClassifier}，
+        並且使用它所提供的
+        \href{https://scikit-learn.org/stable/modules/tree.html#multi-output-problems}{multi-output}
+        功能，透過我們從訓練資料中產生的特徵一次預測比賽所要求的四樣指標：性別、
+        持拍手、球齡、以及等級。
+
+        我們所使用的模型參數如下：
+        \begin{lstlisting}
+            RandomForestClassifier(n_estimators=1000, n_jobs=-1, max_features="sqrt", class_weight="balanced", random_state=random_state)
+        \end{lstlisting}
+
+        我們的演算法設計分為以下幾步：
+        \begin{enumerate}
+            \item 利用 \codenoverb{generate\_features} 函數為每筆訓練和測試資料
+            （\code{.txt} 檔，以下所稱的「一筆」資料皆代表一份訓練或測試
+            \code{.txt} 檔）產生它們對應的特徵 CSV 檔，放在
+            \codenoverb{output/random\_forest\_features}
+            下。\codenoverb{generate\_features} 會負責查詢
+            \codenoverb{train\_info\-.csv} 和 \codenoverb{test\_in\-fo\-.csv} 來
+            獲取每一筆 \codenoverb{unique\_id} 對應到的 \code{mode} 是什
+            麼，這是因為 \code{mode} 也是我們所產生的特徵的其中一個維度。接著他
+            會遍歷每一筆訓練和測試資料的檔案，讀取進來後，逐一呼叫
+            \codenoverb{generate\_features\_for\_single\_data} 來產生每一筆資料
+            的特徵，然後把特徵寫到一份 CSV 中，其檔名就是原資料的 \codenoverb{unique\_id}。
+
+            \item 利用 \codenoverb{train\_model} 函數來訓練隨機森林模型，詳細訓
+            練方式會在\hyperref[training-method]{第伍段}中介紹。訓練好的模型會用
+            Pickle serialize 到 \codenoverb{output/random\_forest\_<ROC AUC
+            score>.pkl} 中，提供給下一步讀取。
+
+            \item 利用 \codenoverb{generate\_submission\_csv} 函數產生可以上傳到
+            AI CUP 比賽網站的 CSV 檔，它會遍歷每一份測試資料特徵 CSV 檔，將它們
+            讀取進來，同時讀取上一步訓練好的隨機森林模型，並用模型產生預測結果，
+            最後把預測結果寫到
+            \codenoverb{output/random\_forest\_submission.csv} 中。
+        \end{enumerate}
+    \section{創新性}
+        以下將說明我們所使用的演算法與資料處理之創新處為何，主要可以分成五部分：
+        \begin{enumerate}
+            \item 使用隨機森林作為分類演算法
+            \item 隨機森林之超參數設定
+            \item 根據 \codenoverb{player\_id} 做資料分割
+            \item 將整筆資料作為一筆訓練資料，不進行資料切割
+            \item 特徵提取
+        \end{enumerate}
+        \subsection{使用隨機森林作為分類演算法}
+            我們所採用的演算法為隨機森林，由於從觀察資料可以發現，資料集的
+            雜訊是較為嚴重的，採用較能對抗雜訊的模型預期會有較好的表現。同
+            時，隨機森林本身的架構就支援多類別分類問題，不像 SVM 需要額外
+            邏輯來實現。
+            
+            同時，我們採用的是 multi-output 的預測方是---只使用一個模型來預測所有特徵，
+            而不是對每個特徵都訓練一個模型。由於不同 feature 之間是具有一定的關
+            聯性的，使用 multi-output 的方式可以有更好的效果。
+        \subsection{隨機森林之超參數設定}
+            我們透過實驗發現設定 \codenoverb{n\_estimators=1000} 模型的泛化程度
+            會是最好的。而由於這次的資料集分佈極為不平均，因此使用
+            \codenoverb{class\_weight="balanced"} 以減緩不平衡造成的影響。
+        \subsection{根據 \codenoverb{player\_id} 做資料分割}
+            本次競賽所提供的資料集是由多位選手的多個動作組成，若在切割訓練集與驗
+            證集時只是隨機切割，會讓同一位選手的資料散佈於訓練集與驗證集中，這樣
+            會出現資料洩漏的情況，導致在評估模型表現時能力被高估，模型也會有過擬
+            合的情況出現。
+
+            因此我們在切割資料時，根據 \codenoverb{player\_id} 做切割，相同
+            \codenoverb{player\_id} 的資料，只會出現在訓練集或是驗證集其中一個，
+            以確保評估模型時所使用的資料是模型完全沒有看過的。
+        \subsection{將整筆資料作為一筆訓練資料，不進行資料切割}
+            由於我們觀察到在原始資料集中每一次的紀錄時間、長短、起始時間都不同，若
+            要精準將每一次單獨的揮拍做切割十分不容易。因此，不同於 baseline 中使
+            用的方式---將每一筆資料切割成 27 等分個小段，再對每個小段計算其特徵，
+            我們是直接對「完整、具有 27 次揮拍資訊」的資料計算特徵。如此作法可以
+            避免切割上不準確造成提處出來的特徵沒有意義，也可以降低單次揮拍偏差值
+            造成的 noise，以此做法提取出來的特徵會較為穩定。
+        \subsection{特徵提取}
+            我們對原始加速度、角速度資料做特徵提取，作為隨機森林的輸入。我們在
+            baseline 的基礎上又新增許多特徵，包括：
+            \begin{enumerate}
+                \item 加速度、角加速度各軸的最大值、最小值、中位數、峰度、偏度
+                \item 總加速度、總角加速度的標準差、方均根、中位數
+                \item 加速度、角加速度各軸傅立葉轉換後的最大值、最小值、中位數、峰度、偏度、平均、標準差、方均根
+                \item 總加速度、總角加速度傅立葉轉換後的最大值、最小值、中位數、峰度、偏度、標準差、方均根
+            \end{enumerate}
+    \section{資料處理\label{data-processing}}
+        我們對於資料遇到的的問題主要是以下三種：
+        \begin{enumerate}
+            \item 由於某些 label 的資料特別少，比如等級四的選手或者是女選手，在
+            我們使用 \code{GroupKFold} 時，有機率會發生某次 fold 的 training set
+            完全沒有出現某一種 label，這時候呼叫
+            \code{RandomForestClassifier.fit} 時就會造成隨機森林在預測某個 task
+            時只會預測比比賽要求還要少的類別，比如如果預測等級的時候完全沒有出現
+            過等級四的選手的資料的話，隨機森林就只會預測三種等級，導致後面的程式
+            碼完全出錯。
+
+            \item 跟上面的問題一樣，只是 label 是在 validation set 裡漏掉，由於
+            ROC AUC 分數是由 validation set 來算的，如果漏掉某一種
+            label，\codenoverb{roc\_auc\_score} 就會報錯說預測結果和目標的類別數
+            量不一樣導致算不出分數，比如如果 training set 在預測等級的這個 task
+            沒有漏掉任何等級，但是 validation set 沒有等級四，這就會造成預測的結
+            果是四種機率（選手是每個等級的機率），但是 validation set 只有出現過
+            三種等級，\codenoverb{roc\_auc\_score} 就會報錯說類別數量不一致。這
+            種情況比上一種還容易發生，因為 validation set 比較小，比較容易漏掉某
+            種label。
+            
+            \item 上面兩種情況同時發生也是有可能的，這時候就更混亂了。
+        \end{enumerate}
+
+        為了解決這些問題，我們採用了以下兩種方法：
+        \begin{enumerate}
+            \item 在每一個 fold 要開始訓練以前，先使用
+            \codenoverb{check\_if\_fold\_is\_usable} 來檢查是否有 training set
+            漏 label 的情況，如果有的話就直接跳過這個 fold。
+
+            \item 在計算 ROC AUC 分數之前，先透過
+            \codenoverb{fix\_missing\_labels} 檢查預測是不是有漏掉某些 label，如
+            果有的話，就為每一種漏掉的 label 加一筆假的預測結果，比如漏掉的是等
+            級四，那就插入一筆預測，其四種機率都是 0.25，且正確答案（target）是
+            等級四，這麼做只會很小的影響 ROC AUC 分數，但可以避免完全算不出來。
+        \end{enumerate}
+    \section{訓練方式\label{training-method}}
+        訓練是透過 \codenoverb{train\_model} 這個函數來完成的，我們使用的 cross
+        validation 方式是 \code{GroupKFold}，選用這個的原因是為了避免同一位選手
+        同時出現在 training set 和 validation set，造成 leakage 的問題。在%
+        \hyperref[data-processing]{第肆段}中提到的問題理論上可以透過改用
+        \code{StratifiedGroupKFold} 來解決，但是他不支援 multi-output，也就是它
+        在 \code{split} 的時候，\code{y} 參數，也就是正確答案（target），只能是
+        一維的，也就代表它一次只能針對這次比賽中的四種 task 的其中一種來 split，
+        這個限制是合理的，因為 stratified 的意義就是要讓 target 的分佈一致，避免
+        上面提到的漏 label 的問題，如果同時有四種 task，它就會不知道要平衡哪一個
+        task 的 target 分佈。但這就代表我們必須訓練四座隨機森林，但因為我們認為
+        這四種 task 彼此之間並不是獨立的，可能使用 multi-output 的效果會比較好，
+        最後沒有採用這種方式。
+
+        函數一開始會先遍歷每一份訓練特徵 CSV 檔，在讀取它們的同時，也從
+        \codenoverb{train\_info.csv} 中讀取每一筆資料的正確答案（target），然後
+        為每一筆資料賦予它的 group ID，其等於這筆資料所對應的
+        \codenoverb{player\_id}，這是為了等一下使用 \code{GroupKFold} 所需要的。
+
+        讀取完以後，它會先用 \code{GroupShuffleSplit} 把所有的訓練資料分出 20\%
+        來當 testing set，剩下的資料則會用 \code{GroupKFold} 做 5-fold 的 cross
+        validation。每個 fold 在開始之前，會像上面提到的那樣用
+        \codenoverb{check\_if\_fold\_is\_usable} 來檢查這個 fold 是否有漏
+        label，如果檢查通過的話，就會用 training set 來 \code{fit} 一座隨機森
+        林，然後將validation set 給剛剛訓練好的隨機森林做預測，再將這些預測使用
+        \codenoverb{calculate\_roc\_auc\_scores} 計算 ROC AUC 分數，同時也會將
+        testing set 用剛剛訓練好的隨機森林做預測後計算分
+        數。\codenoverb{calculate\_roc\_auc\_scores} 會回傳四個分數，分別對應到
+        性別、持拍手、球齡、等級的分數，將用 validation set 算出來的四個分數取平
+        均後，如果平均分數大於之前所有的 fold 的平均分數，就將這次 fold 的超參數
+        儲存起來，用作最後的訓練使用。
+        
+        在 cross validation 結束之後，會使用剛剛決定的最好的超參數，加上
+        training set 和 validation set，一起訓練一座最後的隨機森林。訓練完後，會
+        用testing set 算出此次訓練的最終分數，並將模型儲存到 \code{output/} 中，
+        其檔名會包含這個最終分數。
+    \section{分析與結論}
+        \fig{roc-auc-score-fluctuation}{訓練出來的隨機森林的 ROC AUC 分數震盪幅度很大}
+        由\autoref{roc-auc-score-fluctuation} 可見，我們這組的模型訓練方法所遇到
+        的最大的困難即是訓練出來的隨機森林的 ROC AUC 分數震盪很大，且我們所計算
+        出來的最終分數常常無法反映上傳到 AI CUP 後的真實分數。我們常常遇到有「號
+        稱」分數超過 0.9 的模型，但用它來提交到 AI CUP 後分數卻只有 0.8 甚至更低
+        的情況。分數震盪這麼大的情況下也讓我們很難知道我們在特徵提取或超參數上的
+        改動是否真的有幫助到模型，比如我們最後在 public leaderboard 上的最終排名
+        的成績是用我們預測分數是 0.88 的模型算出來的，遠遠不是我們預測分數會是最
+        高的模型。
+    \section{程式碼}
+        GitHub 連結：\link{https://github.com/AI-CUP-Table-Tennis/ai-cup}
+    \section{使用的外部資源與參考文獻}
+        無。
+    \clearpage
+    \pagestyle{plain}
+    \begin{table}[H]
+        \centering
+        \caption*{\fontsize{20}{24}\selectfont 作者聯絡資料表}
+        \begin{tblr}{
+            colspec = {XXXXXX[2.5]},
+            columns = {c, m},
+            row{2} = {gray9},
+            column{1} = {gray9},
+            cell{1}{3} = {gray9},
+            cell{1}{5} = {gray9},
+            hlines, % cspell: disable-line
+            vlines % cspell: disable-line
+        }
+            隊伍名稱 & TEAM 7631 & Private leaderboard 成績 & 0.798613 & Private leaderboard 名次 & 28 \\
+            身份 & 姓名 & 學校 + 系所中文全稱 & 學校 + 系所英文全稱 & 電話 & E-mail \\
+            隊長 & 廖翊廷 Yi-Ting, Liao & 國立中正大學資訊工程學系 & National Chung Cheng University Department of Computer Science and Information Engineering & 0972-257-391 & \email{yitingliao2003@gmail.com} \\
+            隊員 1 & 鄭琇文 Hsiu-Wen, Cheng & 國立中正大學資訊工程學系 & Same as above & 0921-518-891 & \email{hwcheng555@gmail.com} \\
+            隊員 2 & 謝維佳 Wei-Chia, Hsieh & 國立中正大學資訊工程學系 & Same as above & 0902-391-237 & \email{weichia@csie.io} \\
+            隊員 3 & 吳秉倫 Bing-Lun, Wu & 國立中正大學資訊工程學系 & Same as above & 0968-892-192 & \email{palapapa93@gmail.com} \\
+            隊員 4 & 王俐晴 Li-Chin, Wang & 國立中正大學資訊工程學系 & Same as above & 0976-882-682 & \email{lichin@csie.io} \\
+        \end{tblr}
+    \end{table}
+\end{document}
